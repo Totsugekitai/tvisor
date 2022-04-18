@@ -1,5 +1,5 @@
 obj-m += tvisor.o
-tvisor-objs := tvisor_main.o cpu_asm.o cpu.o page_table.o
+tvisor-objs := tvisor_main.o cpu_asm.o cpu.o page_table.o vm.o
 
 PWD := $(CURDIR)
 

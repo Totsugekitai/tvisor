@@ -9,7 +9,7 @@
 #include <linux/types.h> /* Needed for uint64_t, etc */
 
 #include "cpu.h"
-#include "page_table.h"
+#include "vm.h"
 
 #include <linux/string.h> /* Needed for strncpy, etc */
 #include <linux/uaccess.h> /* Needed for copy_from_user, copy_to_user */
@@ -68,7 +68,8 @@ static int is_virtualization_ready(void)
 
 static int tvisor_open(struct inode *inode, struct file *file)
 {
-	uint64_t vaddr, paddr;
+	/* test */
+	vm_state_t *vmstate;
 
 	if (atomic_cmpxchg(&already_open, CDEV_NOT_USED, CDEV_EXCLUSIVE_OPEN)) {
 		return -EBUSY;
@@ -90,9 +91,14 @@ static int tvisor_open(struct inode *inode, struct file *file)
 	}
 
 	/* test */
-	vaddr = (uint64_t)&state;
-	paddr = vaddr2paddr(vaddr);
-	pr_info("vaddr = 0x%llx, paddr = 0x%llx\n", vaddr, paddr);
+	pr_info("enable VMX!\n");
+	on_each_cpu(&enable_vmx, NULL, 0);
+	state.is_vmx_enabled = 1;
+
+	if (!allocate_vmxon_region(vmstate)) {
+		pr_alert("allocate_vmxon_region failed\n");
+		return -EFAULT;
+	}
 
 	return SUCCESS;
 }

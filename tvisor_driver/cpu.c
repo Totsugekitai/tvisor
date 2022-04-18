@@ -69,3 +69,12 @@ int is_vmx_supported(void)
 
 	return 1;
 }
+
+int vmx_on(uint64_t phys)
+{
+	if (phys % 0x1000 != 0) {
+		return -EINVAL;
+	}
+	asm_vmxon(phys);
+	return 0;
+}

@@ -85,3 +85,10 @@ asm_disable_vmx:
     and rax, 0xffffffffffffdfff
     mov cr4, rax
     ret
+
+# void asm_vmxon(uint64_t phys)
+.global asm_vmxon
+asm_vmxon:
+    vmxon [rdi]
+    nop
+    ret
