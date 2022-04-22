@@ -7,14 +7,13 @@
 #include <linux/smp.h> /* Needed for on_each_cpu */
 #include <linux/cpumask.h>/* Needed for on_each_cpu */
 #include <linux/types.h> /* Needed for uint64_t, etc */
-
-#include "cpu.h"
-#include "vm.h"
-
 #include <linux/string.h> /* Needed for strncpy, etc */
 #include <linux/uaccess.h> /* Needed for copy_from_user, copy_to_user */
 
-MODULE_LICENSE("GPL");
+#include "cpu.h"
+#include "vmx.h"
+
+MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Totsugekitai");
 MODULE_DESCRIPTION("Totsugekitai Hypervisor from scratch");
 
@@ -53,52 +52,14 @@ static struct file_operations tvisor_fops = {
 	.write = tvisor_write,
 };
 
-static int is_virtualization_ready(void);
-
-static int is_virtualization_ready(void)
-{
-	if (is_vmx_supported()) {
-		pr_info("VMX is supported on this machine\n");
-		return 1;
-	} else {
-		pr_alert("VMX is not supported on this machine\n");
-		return 0;
-	}
-}
-
 static int tvisor_open(struct inode *inode, struct file *file)
 {
-	/* test */
-	vm_state_t *vmstate;
-
 	if (atomic_cmpxchg(&already_open, CDEV_NOT_USED, CDEV_EXCLUSIVE_OPEN)) {
 		return -EBUSY;
 	}
 
-	pr_info("open tvisor\n");
+	pr_info("tvisor: open\n");
 	try_module_get(THIS_MODULE);
-
-	if (is_virtualization_ready()) {
-		state.is_virtualization_ready = 1;
-	} else {
-		state.is_virtualization_ready = 0;
-	}
-
-	if (is_vmx_enabled()) {
-		state.is_vmx_enabled = 1;
-	} else {
-		state.is_vmx_enabled = 0;
-	}
-
-	/* test */
-	pr_info("enable VMX!\n");
-	on_each_cpu(&enable_vmx, NULL, 0);
-	state.is_vmx_enabled = 1;
-
-	if (!allocate_vmxon_region(vmstate)) {
-		pr_alert("allocate_vmxon_region failed\n");
-		return -EFAULT;
-	}
 
 	return SUCCESS;
 }
@@ -109,7 +70,7 @@ static int tvisor_release(struct inode *inode, struct file *file)
 
 	module_put(THIS_MODULE);
 
-	pr_info("release tvisor\n");
+	pr_info("tvisor: release\n");
 
 	return SUCCESS;
 }
@@ -121,17 +82,15 @@ static ssize_t tvisor_read(struct file *filp, char __user *ubuf, size_t count,
 	size_t len;
 	int nchar;
 
-	// pr_info("tvisor read\n");
-
-	nchar = snprintf(kbuf, KBUF_SIZE,
-			 "virtualization ready: %d\nVMX is enabled: %d\n",
-			 state.is_virtualization_ready, state.is_vmx_enabled);
+	nchar = snprintf(
+		kbuf, KBUF_SIZE,
+		"tvisor: virtualization ready: %d\nVMX is enabled: %d\n",
+		state.is_virtualization_ready, state.is_vmx_enabled);
 	if (nchar >= KBUF_SIZE) {
-		pr_alert("snprintf truncated!!!\n");
+		pr_alert("tvisor: snprintf truncated!!!\n");
 	}
 
 	len = strlen(kbuf);
-	// pr_info("%zd, %zd\n", (count - (size_t)*offset) + len, count);
 	if ((count - *offset) + len <= count) {
 		return 0;
 	}
@@ -139,6 +98,8 @@ static ssize_t tvisor_read(struct file *filp, char __user *ubuf, size_t count,
 	if (copy_to_user(ubuf, kbuf, len)) {
 		return -EFAULT;
 	}
+
+	pr_info("tvisor: read[%s]\n", kbuf);
 
 	*offset += len;
 
@@ -156,15 +117,15 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	if (copy_from_user(kbuf, ubuf, count)) {
 		return -EFAULT;
 	}
-	pr_info("tvisor write value: %s\n", kbuf);
+	pr_info("tvisor: write[%s]\n", kbuf);
 
 	if (!strncmp(kbuf, enable, strlen(enable))) {
 		pr_info("enable VMX!\n");
-		on_each_cpu(&enable_vmx, NULL, 0);
+		run_vmx();
 		state.is_vmx_enabled = 1;
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
 		pr_info("disable VMX!\n");
-		on_each_cpu(&disable_vmx, NULL, 0);
+		exit_vmx();
 		state.is_vmx_enabled = 0;
 	}
 
@@ -173,32 +134,43 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 
 static int __init init_tvisor(void)
 {
-	pr_info("hello tvisor!\n");
+	pr_info("tvisor: hello!\n");
 
 	major = register_chrdev(0, DEVICE_NAME, &tvisor_fops);
 	if (major < 0) {
-		pr_alert("Registering char device failed with %d\n", major);
+		pr_alert("Registering character device failed[%d]\n", major);
 		return major;
 	}
 
-	pr_info("assigned major number %d\n", major);
+	pr_info("tvisor: assigned major number[%d]\n", major);
 
 	cls = class_create(THIS_MODULE, DEVICE_NAME);
 	device_create(cls, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
 
-	pr_info("Device created on /dev/%s\n", DEVICE_NAME);
+	pr_info("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
+
+	int err = init_vmx();
+	if (err) {
+		pr_alert("tvisor: init_vmx failed[%d]\n", err);
+		return err;
+	}
 
 	return SUCCESS;
 }
 
 static void __exit exit_tvisor(void)
 {
+	if (state.is_vmx_enabled) {
+		exit_vmx();
+	}
+	pr_info("tvisor: test\n");
+
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);
 
 	unregister_chrdev(major, DEVICE_NAME);
 
-	pr_info("Goodbye tvisor!\n");
+	pr_info("tvisor: bye!\n");
 }
 
 module_init(init_tvisor);

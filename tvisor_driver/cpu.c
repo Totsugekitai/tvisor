@@ -1,80 +1,98 @@
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/types.h>
 #include <linux/errno.h>
+#include <linux/kernel.h>
 
 #include "cpu.h"
-// #include "msr.h"
 
-int get_cpuid(uint32_t level, cpuid_t *cpuid)
+int get_cpuid(u32 level, cpuid_t *cpuid)
 {
 	if (cpuid == NULL) {
 		return -EINVAL;
 	}
 
-	asm_get_cpuid(level, &cpuid->eax, &cpuid->ebx, &cpuid->ecx,
-		      &cpuid->edx);
+	asm volatile("cpuid"
+		     : "=a"(cpuid->eax), "=b"(cpuid->ebx), "=c"(cpuid->ecx),
+		       "=d"(cpuid->edx)
+		     : "r"(level));
 
 	return 0;
 }
 
-uint64_t read_msr(uint32_t msr)
+u16 read_es(void)
 {
-	uint32_t low, high;
-
-	asm_read_msr(msr, &low, &high);
-	return ((uint64_t)high << 32) | low;
+	u16 es;
+	asm volatile("mov %%es, %0" : "=r"(es));
+	return es;
 }
 
-void write_msr(uint32_t msr, uint64_t all)
+u16 read_cs(void)
 {
-	uint32_t low, high;
-
-	low = (uint32_t)all;
-	high = (uint32_t)(all >> 32);
-	asm_write_msr(msr, low, high);
+	u16 cs;
+	asm volatile("mov %%cs, %0" : "=r"(cs));
+	return cs;
 }
 
-void enable_vmx(void *data)
+u16 read_ss(void)
 {
-	asm_enable_vmx();
+	u16 ss;
+	asm volatile("mov %%ss, %0" : "=r"(ss));
+	return ss;
 }
 
-void disable_vmx(void *data)
+u16 read_ds(void)
 {
-	asm_disable_vmx();
+	u16 ds;
+	asm volatile("mov %%ds, %0" : "=r"(ds));
+	return ds;
 }
 
-int is_vmx_supported(void)
+u16 read_fs(void)
 {
-	cpuid_t cpuid = { 0 };
-	ia32_feature_control_msr_t control = { 0 };
-
-	get_cpuid(1, &cpuid);
-
-	if ((cpuid.ecx & (1 << 5)) == 0) {
-		return 0;
-	}
-
-	control.all = read_msr(0x03a); /* MSR_IA32_FEATURE_CONTROL */
-
-	if (control.fields.lock == 0) {
-		control.fields.lock = 1;
-		control.fields.enable_vmxon = 1;
-		write_msr(0x03a, control.all); /* MSR_IA32_FEATURE_CONTROL */
-	} else if (control.fields.enable_vmxon == 0) {
-		pr_alert("VMX locked off in BIOS\n");
-		return 0;
-	}
-
-	return 1;
+	u16 fs;
+	asm volatile("mov %%fs, %0" : "=r"(fs));
+	return fs;
 }
 
-int vmx_on(uint64_t phys)
+u16 read_gs(void)
 {
-	if (phys % 0x1000 != 0) {
-		return -EINVAL;
-	}
-	asm_vmxon(phys);
-	return 0;
+	u16 gs;
+	asm volatile("mov %%gs, %0" : "=r"(gs));
+	return gs;
 }
+
+u64 read_cr4(void)
+{
+	u64 cr4;
+	asm volatile("movq %%cr4, %0" : "=r"(cr4));
+
+	return cr4;
+}
+
+void write_cr4(u64 cr4)
+{
+	asm volatile("movq %0, %%cr4" : : "r"(cr4));
+}
+
+// int is_vmx_supported(void)
+// {
+// 	cpuid_t cpuid = { 0 };
+// 	ia32_feature_control_msr_t control = { 0 };
+
+// 	get_cpuid(1, &cpuid);
+
+// 	if ((cpuid.ecx & (1 << 5)) == 0) {
+// 		return 0;
+// 	}
+
+// 	control.all = read_msr(0x03a); /* MSR_IA32_FEATURE_CONTROL */
+
+// 	if (control.fields.lock == 0) {
+// 		control.fields.lock = 1;
+// 		control.fields.enable_vmxon = 1;
+// 		write_msr(0x03a, control.all); /* MSR_IA32_FEATURE_CONTROL */
+// 	} else if (control.fields.enable_vmxon == 0) {
+// 		pr_alert("VMX locked off in BIOS\n");
+// 		return 0;
+// 	}
+
+// 	return 1;
+// }

@@ -1,5 +1,7 @@
 obj-m += tvisor.o
-tvisor-objs := tvisor_main.o cpu_asm.o cpu.o page_table.o vm.o
+tvisor-objs := main.o cpu.o vmx.o
+
+ccflags-y += -g -Og -Wno-declaration-after-statement
 
 PWD := $(CURDIR)
 
