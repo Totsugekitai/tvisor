@@ -72,6 +72,13 @@ void write_cr4(u64 cr4)
 	asm volatile("movq %0, %%cr4" : : "r"(cr4));
 }
 
+u8 read_cpl(void)
+{
+	u16 cs;
+	asm volatile("mov %%cs, %0" : "=r"(cs));
+	return (u8)cs & 3;
+}
+
 // int is_vmx_supported(void)
 // {
 // 	cpuid_t cpuid = { 0 };

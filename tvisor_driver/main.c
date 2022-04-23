@@ -120,11 +120,11 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	pr_info("tvisor: write[%s]\n", kbuf);
 
 	if (!strncmp(kbuf, enable, strlen(enable))) {
-		pr_info("enable VMX!\n");
+		pr_info("tvisor: enable VMX!\n");
 		run_vmx();
 		state.is_vmx_enabled = 1;
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
-		pr_info("disable VMX!\n");
+		pr_info("tvisor: disable VMX!\n");
 		exit_vmx();
 		state.is_vmx_enabled = 0;
 	}
@@ -163,7 +163,6 @@ static void __exit exit_tvisor(void)
 	if (state.is_vmx_enabled) {
 		exit_vmx();
 	}
-	pr_info("tvisor: test\n");
 
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);

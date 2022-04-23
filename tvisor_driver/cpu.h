@@ -59,3 +59,4 @@ u16 read_fs(void);
 u16 read_gs(void);
 u64 read_cr4(void);
 void write_cr4(u64 cr4);
+u8 read_cpl(void);

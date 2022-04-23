@@ -10,7 +10,6 @@
 #include "cpu.h"
 
 static DEFINE_PER_CPU(vmcs_t *, vmxon_region);
-static vmcs_t *vmcs;
 
 static vmcs_t *alloc_vmcs_region(int cpu)
 {
@@ -121,9 +120,6 @@ static void exit_vmx_inner(void *_dummy)
 	}
 
 	__free_page(virt_to_page(per_cpu(vmxon_region, cpu)));
-
-	vmcs = NULL;
-	vmxon_region = NULL;
 
 	pr_info("tvisor: vmxoff success[cpu %d]\n", cpu);
 }
