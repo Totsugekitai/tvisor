@@ -6,6 +6,7 @@ toy hypervisor as a linux kernel module.
 
 - [Hypervisor-From-Scratch](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/)
 - [The Linux Kernel Module Programming](https://sysprog21.github.io/lkmpg/)
+- [sux2mfgj/vmm](https://github.com/sux2mfgj/vmm)
 
 ## memo
 
