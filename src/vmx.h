@@ -13,7 +13,7 @@ typedef struct _vmcs {
 	u32 data[1];
 } vmcs_t;
 
-void enable_vmx_all_cpu(void);
-void disable_vmx_all_cpu(void);
+int enable_vmx_on_each_cpu(void);
+int disable_vmx_on_each_cpu(void);
 int alloc_vmcs_all_cpu(void);
 void free_vmcs_all_cpu(void);

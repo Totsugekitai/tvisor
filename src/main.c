@@ -120,15 +120,21 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	pr_info("tvisor: write[%s]\n", kbuf);
 
 	if (!strncmp(kbuf, enable, strlen(enable))) {
-		// int err = run_vmx();
-		enable_vmx_all_cpu();
-		state.is_vmx_enabled = 1;
-		pr_info("tvisor: enable VMX!\n");
+		int err = enable_vmx_on_each_cpu();
+		if (err) {
+			pr_alert("tvisor: failed to enable VMX\n");
+		} else {
+			state.is_vmx_enabled = 1;
+			pr_info("tvisor: enable VMX!\n");
+		}
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
-		// int err = exit_vmx();
-		disable_vmx_all_cpu();
-		state.is_vmx_enabled = 0;
-		pr_info("tvisor: disable VMX!\n");
+		int err = disable_vmx_on_each_cpu();
+		if (err) {
+			pr_alert("tvisor: failed to disable VMX\n");
+		} else {
+			state.is_vmx_enabled = 0;
+			pr_info("tvisor: disable VMX!\n");
+		}
 	}
 
 	return count;
@@ -151,7 +157,6 @@ static int __init init_tvisor(void)
 
 	pr_info("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
-	// int err = init_vmx();
 	int err = alloc_vmcs_all_cpu();
 	if (err) {
 		pr_alert("tvisor: init_vmx failed[%d]\n", err);
@@ -164,7 +169,10 @@ static int __init init_tvisor(void)
 static void __exit exit_tvisor(void)
 {
 	if (state.is_vmx_enabled) {
-		disable_vmx_all_cpu();
+		int err = disable_vmx_on_each_cpu();
+		if (err) {
+			pr_alert("tvisor: failed to disable VMX\n");
+		}
 	}
 	free_vmcs_all_cpu();
 
