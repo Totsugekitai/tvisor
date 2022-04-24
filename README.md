@@ -11,3 +11,4 @@ toy hypervisor as a linux kernel module.
 ## memo
 
 - [linux kernel - how to get physical address (memory management)?](https://stackoverflow.com/questions/41090469/linux-kernel-how-to-get-physical-address-memory-management)
+- [GCC Inline Assembler](https://www.hazymoon.jp/OpenBSD/annex/gcc_inline_asm.html)

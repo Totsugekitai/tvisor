@@ -1,20 +1,14 @@
-#include <linux/errno.h>
-#include <linux/kernel.h>
-
 #include "cpu.h"
 
-int get_cpuid(u32 level, cpuid_t *cpuid)
+cpuid_t get_cpuid(u32 level)
 {
-	if (cpuid == NULL) {
-		return -EINVAL;
-	}
-
+	cpuid_t cpuid = { 0 };
 	asm volatile("cpuid"
-		     : "=a"(cpuid->eax), "=b"(cpuid->ebx), "=c"(cpuid->ecx),
-		       "=d"(cpuid->edx)
+		     : "=a"(cpuid.eax), "=b"(cpuid.ebx), "=c"(cpuid.ecx),
+		       "=d"(cpuid.edx)
 		     : "r"(level));
 
-	return 0;
+	return cpuid;
 }
 
 u16 read_es(void)
@@ -77,6 +71,21 @@ u8 read_cpl(void)
 	u16 cs;
 	asm volatile("mov %%cs, %0" : "=r"(cs));
 	return (u8)cs & 3;
+}
+
+int is_vmxe(void)
+{
+	u64 cr4 = 0;
+	asm volatile("mov %%cr4, %0" : "=r"(cr4));
+	return (int)(cr4 & 0x2000);
+}
+
+void set_vmxe(void)
+{
+	asm volatile("mov %%cr4, %%rax; or $0x2000, %%rax; mov %%rax, %%cr4"
+		     :
+		     :
+		     : "%rax");
 }
 
 // int is_vmx_supported(void)

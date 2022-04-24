@@ -1,23 +1,12 @@
 #pragma once
 
-#include <asm/types.h>
+#include <linux/types.h>
 
-/* in cpu_asm.S */
-// extern void asm_get_cpuid(uint32_t level, uint32_t *eax, uint32_t *ebx,
-// 			  uint32_t *ecx, uint32_t *edx);
-// extern void asm_read_msr(uint32_t msr, uint32_t *low, uint32_t *high);
-// extern void asm_write_msr(uint32_t msr, uint32_t low, uint32_t high);
-// extern void asm_vmxon(uint64_t phys);
-// extern uint64_t is_vmx_enabled(void);
-// extern void asm_enable_vmx(void);
-// extern void asm_disable_vmx(void);
-
-/* in cpu.c */
 typedef struct _cpuid {
-	int eax;
-	int ebx;
-	int ecx;
-	int edx;
+	u32 eax;
+	u32 ebx;
+	u32 ecx;
+	u32 edx;
 } cpuid_t;
 
 // typedef union _ia32_feature_control_msr {
@@ -60,3 +49,5 @@ u16 read_gs(void);
 u64 read_cr4(void);
 void write_cr4(u64 cr4);
 u8 read_cpl(void);
+int is_vmxe(void);
+void set_vmxe(void);
