@@ -2,7 +2,7 @@
 
 cpuid_t get_cpuid(u32 level)
 {
-	cpuid_t cpuid = { 0 };
+	cpuid_t cpuid = { 0, 0, 0, 0 };
 	asm volatile("cpuid"
 		     : "=a"(cpuid.eax), "=b"(cpuid.ebx), "=c"(cpuid.ecx),
 		       "=d"(cpuid.edx)

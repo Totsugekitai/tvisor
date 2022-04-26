@@ -122,18 +122,22 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	if (!strncmp(kbuf, enable, strlen(enable))) {
 		int err = enable_vmx_on_each_cpu();
 		if (err) {
-			pr_alert("tvisor: failed to enable VMX\n");
+			pr_alert("tvisor: failed to enable VMX[%d]\n", err);
 		} else {
 			state.is_vmx_enabled = 1;
 			pr_info("tvisor: enable VMX!\n");
 		}
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
-		int err = disable_vmx_on_each_cpu();
-		if (err) {
-			pr_alert("tvisor: failed to disable VMX\n");
+		if (state.is_vmx_enabled) {
+			int err = disable_vmx_on_each_cpu();
+			if (err) {
+				pr_alert("tvisor: failed to disable VMX\n");
+			} else {
+				state.is_vmx_enabled = 0;
+				pr_info("tvisor: disable VMX!\n");
+			}
 		} else {
-			state.is_vmx_enabled = 0;
-			pr_info("tvisor: disable VMX!\n");
+			pr_info("tvisor: vmx is not enabled now\n");
 		}
 	}
 
