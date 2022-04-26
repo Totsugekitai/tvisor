@@ -40,6 +40,7 @@ typedef struct _cpuid {
 // 	} fields;
 // } ia32_vmx_basic_msr_t;
 
+cpuid_t get_cpuid(u32 level);
 u16 read_es(void);
 u16 read_cs(void);
 u16 read_ss(void);

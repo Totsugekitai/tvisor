@@ -15,5 +15,5 @@ typedef struct _vmcs {
 
 int enable_vmx_on_each_cpu(void);
 int disable_vmx_on_each_cpu(void);
-int alloc_vmcs_all_cpu(void);
-void free_vmcs_all_cpu(void);
+int alloc_vmxon_region_all_cpu(void);
+void free_vmxon_region_all_cpu(void);

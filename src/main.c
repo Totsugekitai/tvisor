@@ -157,7 +157,7 @@ static int __init init_tvisor(void)
 
 	pr_info("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
-	int err = alloc_vmcs_all_cpu();
+	int err = alloc_vmxon_region_all_cpu();
 	if (err) {
 		pr_alert("tvisor: init_vmx failed[%d]\n", err);
 		return err;
@@ -174,7 +174,7 @@ static void __exit exit_tvisor(void)
 			pr_alert("tvisor: failed to disable VMX\n");
 		}
 	}
-	free_vmcs_all_cpu();
+	free_vmxon_region_all_cpu();
 
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);

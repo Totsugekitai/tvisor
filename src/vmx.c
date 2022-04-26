@@ -9,9 +9,26 @@
 #include "vmx.h"
 #include "cpu.h"
 
-static DEFINE_PER_CPU(vmcs_t *, vmcs_region);
+static DEFINE_PER_CPU(vmcs_t *, vmxon_region);
 
-static vmcs_t *alloc_vmcs_region(int cpu)
+// static int is_vmx_supported(void)
+// {
+// 	cpuid_t cpuid = get_cpuid(1);
+// 	return cpuid.ecx & 0b10000;
+// }
+
+// static int is_vmxon_supported(void)
+// {
+// 	u64 ia32_feature_control = 0;
+// 	rdmsrl(MSR_IA32_FEATURE_CONTROL, ia32_feature_control);
+// 	u64 lock = ia32_feature_control & 0b1;
+// 	u64 vmxon_in_smx = ia32_feature_control & 0b10;
+// 	u64 vmxon_outside_smx = ia32_feature_control & 0b100;
+
+// 	return (lock | vmxon_in_smx | vmxon_outside_smx);
+// }
+
+static vmcs_t *alloc_vmxon_region(int cpu)
 {
 	int node = cpu_to_node(cpu);
 
@@ -23,29 +40,31 @@ static vmcs_t *alloc_vmcs_region(int cpu)
 		return NULL;
 	}
 
-	vmcs_t *vmcs = page_address(page);
+	vmcs_t *vmxon_vmcs = page_address(page);
 
 	size_t vmcs_size = vmx_msr_high & 0x1ffff;
-	memset(vmcs, 0, vmcs_size);
+	memset(vmxon_vmcs, 0, vmcs_size);
 
-	return vmcs;
+	vmxon_vmcs->rev_id = vmx_msr_low & 0x7fffffff;
+
+	return vmxon_vmcs;
 }
 
-static void free_vmcs_region(int cpu)
+static void free_vmxon_region(int cpu)
 {
-	vmcs_t *vmcs = per_cpu(vmcs_region, cpu);
-	if (vmcs == NULL) {
+	vmcs_t *vmxon_vmcs = per_cpu(vmxon_region, cpu);
+	if (vmxon_vmcs == NULL) {
 		return;
 	}
-	__free_page(virt_to_page(vmcs));
+	__free_page(virt_to_page(vmxon_vmcs));
 }
 
-static int vmxon(u64 phys)
+static int vmxon(u64 phys_vmxon_region)
 {
 	u8 err;
 	asm volatile("vmxon %1; setna %0"
 		     : "=q"(err)
-		     : "m"(phys)
+		     : "m"(phys_vmxon_region)
 		     : "memory", "cc");
 
 	return err;
@@ -64,16 +83,17 @@ static int vmxoff(void)
 
 static int enable_vmx(int cpu)
 {
-	u64 msr_vmx_basic = 0;
-	rdmsrl(MSR_IA32_VMX_BASIC, msr_vmx_basic);
+	// u64 msr_vmx_basic = 0;
+	// rdmsrl(MSR_IA32_VMX_BASIC, msr_vmx_basic);
 
-	vmcs_t *vmcs = per_cpu(vmcs_region, cpu);
-	if (vmcs == NULL) {
-		pr_alert("tvisor: vmcs is not allocated[cpu %d]\n", cpu);
+	vmcs_t *vmxon_vmcs = per_cpu(vmxon_region, cpu);
+	if (vmxon_vmcs == NULL) {
+		pr_alert("tvisor: vmxon region is not allocated[cpu %d]\n",
+			 cpu);
 		return -ENOMEM;
 	}
 
-	vmcs->rev_id = (u32)msr_vmx_basic;
+	// vmxon_vmcs->rev_id = (u32)msr_vmx_basic;
 
 	u64 cr0 = read_cr0();
 	u64 msr_val = 0;
@@ -90,9 +110,9 @@ static int enable_vmx(int cpu)
 	cr4 |= msr_val;
 	write_cr4(cr4);
 
-	u64 phys_vmcs = __pa(vmcs);
+	u64 phys_vmxon_vmcs = __pa(vmxon_vmcs);
 
-	int err = vmxon(phys_vmcs);
+	int err = vmxon(phys_vmxon_vmcs);
 	if (err) {
 		pr_alert("tvisor: failed to vmxon[%d] at cpu %d\n", err, cpu);
 		return err;
@@ -181,28 +201,28 @@ int disable_vmx_on_each_cpu(void)
 	return 0;
 }
 
-int alloc_vmcs_all_cpu(void)
+int alloc_vmxon_region_all_cpu(void)
 {
 	int cpu;
 
 	for_each_possible_cpu (cpu) {
-		vmcs_t *vmcs = alloc_vmcs_region(cpu);
-		if (vmcs == NULL) {
+		vmcs_t *vmxon_vmcs = alloc_vmxon_region(cpu);
+		if (vmxon_vmcs == NULL) {
 			return -ENOMEM;
 		}
 
-		per_cpu(vmcs_region, cpu) = vmcs;
+		per_cpu(vmxon_region, cpu) = vmxon_vmcs;
 	}
 
 	return 0;
 }
 
-void free_vmcs_all_cpu(void)
+void free_vmxon_region_all_cpu(void)
 {
 	int cpu;
 
 	for_each_possible_cpu (cpu) {
-		free_vmcs_region(cpu);
-		per_cpu(vmcs_region, cpu) = NULL;
+		free_vmxon_region(cpu);
+		per_cpu(vmxon_region, cpu) = NULL;
 	}
 }
