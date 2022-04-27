@@ -74,11 +74,37 @@ static int vmxoff(void)
 {
 	u8 err;
 	asm volatile("vmxoff; setna %0" : "=q"(err));
-	if (err) {
-		return err;
-	}
 
-	return 0;
+	return err;
+}
+
+static u64 vmptrst(void)
+{
+	u64 vmcspa = 0;
+	asm volatile("vmptrst %0" : : "m"(&vmcspa) : "memory", "cc");
+
+	pr_info("tvisor: VMPTRST %llx\n", vmcspa);
+
+	return vmcspa;
+}
+
+static int vmclear(u64 vmcs_region)
+{
+	u8 err;
+	asm volatile("vmclear %1; setna %0"
+		     : "=q"(err)
+		     : "m"(vmcs_region)
+		     : "memory", "cc");
+
+	return (int)err;
+}
+
+static int vmptrld(u64 vmcs_region)
+{
+	u8 err;
+	asm volatile("vmptrld %1; setna %0" : "=q"(err) : "m"(vmcs_region));
+
+	return (int)err;
 }
 
 static int enable_vmx(int cpu)

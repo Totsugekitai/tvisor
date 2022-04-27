@@ -2,11 +2,6 @@
 
 #include <linux/types.h>
 
-typedef struct _vm_state {
-	u64 vmxon_region;
-	u64 vmcs_region;
-} vm_state_t;
-
 typedef struct _vmcs {
 	u32 rev_id;
 	u32 abort;
