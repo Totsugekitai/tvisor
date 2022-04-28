@@ -2,6 +2,10 @@
 
 toy hypervisor as a linux kernel module.
 
+## implementation plan
+
+- run only single VM
+
 ## References
 
 - [Hypervisor-From-Scratch](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/)
