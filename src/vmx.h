@@ -8,7 +8,12 @@ typedef struct _vmcs {
 	u32 data[1];
 } vmcs_t;
 
-int enable_vmx_on_each_cpu(void);
+typedef vmcs_t vmxon_region_t;
+
+vmcs_t *alloc_vmcs_region(void);
+vmxon_region_t *alloc_vmxon_region(void);
+void free_vmcs_region(vmcs_t *vmcs);
+void free_vmxon_region(vmxon_region_t *vmxon_region);
+
+int enable_vmx_on_each_cpu(vmcs_t *vmxon_region);
 int disable_vmx_on_each_cpu(void);
-int alloc_vmxon_region_all_cpu(void);
-void free_vmxon_region_all_cpu(void);

@@ -2,11 +2,14 @@
 
 #include <linux/types.h>
 
+#include "vmx.h"
+#include "ept.h"
+
 typedef struct _vm_state {
-	u64 vmxon_region;
-	u64 vmcs_region;
-	u64 ept_pointer;
-	u64 vmm_stack;
-	u64 msr_bitmap_virt;
+	vmxon_region_t *vmxon_region;
+	vmcs_t *vmcs_region;
+	ept_pointer_t *ept_pointer;
+	u64 *vmm_stack;
+	u64 *msr_bitmap_virt;
 	u64 msr_bitmap_phys;
 } vm_state_t;

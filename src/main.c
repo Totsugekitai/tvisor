@@ -12,6 +12,7 @@
 
 #include "cpu.h"
 #include "vmx.h"
+#include "vm.h"
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Totsugekitai");
@@ -38,6 +39,8 @@ static struct tvisor_state state = {
 	.is_virtualization_ready = 0,
 	.is_vmx_enabled = 0,
 };
+
+extern vm_state_t vm;
 
 static int tvisor_open(struct inode *, struct file *);
 static int tvisor_release(struct inode *, struct file *);
@@ -120,7 +123,7 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	pr_info("tvisor: write[%s]\n", kbuf);
 
 	if (!strncmp(kbuf, enable, strlen(enable))) {
-		int err = enable_vmx_on_each_cpu();
+		int err = enable_vmx_on_each_cpu(vm.vmxon_region);
 		if (err) {
 			pr_alert("tvisor: failed to enable VMX[%d]\n", err);
 		} else {
@@ -161,11 +164,11 @@ static int __init init_tvisor(void)
 
 	pr_info("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
-	int err = alloc_vmxon_region_all_cpu();
-	if (err) {
-		pr_alert("tvisor: init_vmx failed[%d]\n", err);
-		return err;
+	vmcs_t *vmxon_region = alloc_vmxon_region();
+	if (vmxon_region == NULL) {
+		return -ENOMEM;
 	}
+	vm.vmxon_region = vmxon_region;
 
 	return SUCCESS;
 }
@@ -176,9 +179,11 @@ static void __exit exit_tvisor(void)
 		int err = disable_vmx_on_each_cpu();
 		if (err) {
 			pr_alert("tvisor: failed to disable VMX\n");
+		} else {
+			pr_info("tvisor: disable VMX!\n");
 		}
 	}
-	free_vmxon_region_all_cpu();
+	free_vmxon_region(vm.vmxon_region);
 
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);
