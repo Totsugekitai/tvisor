@@ -1,7 +1,167 @@
 #include <linux/mm.h>
+#include <linux/slab.h>
 
+#include "cpu.h"
 #include "ept.h"
 #include "util.h"
+
+static ept_pte_t *alloc_ept_pt(void)
+{
+	struct page *page = alloc_page(GFP_KERNEL);
+	if (page == NULL) {
+		return NULL;
+	}
+	ept_pte_t *pt = (ept_pte_t *)page_address(page);
+	memset(pt, 0, 0x1000);
+	return pt;
+}
+
+static void free_ept_pt(ept_pte_t *pt)
+{
+	__free_page(virt_to_page(pt));
+}
+
+static ept_pde_t *alloc_ept_pd(void)
+{
+	struct page *page = alloc_page(GFP_KERNEL);
+	if (page == NULL) {
+		return NULL;
+	}
+	ept_pde_t *pd = (ept_pde_t *)page_address(page);
+	memset(pd, 0, 0x1000);
+	return pd;
+}
+
+static void free_ept_pd(ept_pde_t *pd)
+{
+	size_t i;
+	for (i = 0; i < 512; i++) {
+		u64 pt_phys = pd[i].ept_pt_address;
+		if (pt_phys == 0xfffffffff) {
+			continue;
+		} else {
+			ept_pte_t *pt = __va(pt_phys * 0x1000);
+			free_ept_pt(pt);
+		}
+	}
+	__free_page(virt_to_page(pd));
+}
+
+static ept_pdpte_t *alloc_ept_pdpt(void)
+{
+	struct page *page = alloc_page(GFP_KERNEL);
+	if (page == NULL) {
+		return NULL;
+	}
+	ept_pdpte_t *pdpt = (ept_pdpte_t *)page_address(page);
+	memset(pdpt, 0, 0x1000);
+	return pdpt;
+}
+
+static void free_ept_pdpt(ept_pdpte_t *pdpt)
+{
+	size_t i;
+	for (i = 0; i < 512; i++) {
+		u64 pd_phys = pdpt[i].ept_pd_address;
+		if (pd_phys == 0xfffffffff) {
+			continue;
+		} else {
+			ept_pde_t *pd = __va(pd_phys * 0x1000);
+			free_ept_pd(pd);
+		}
+	}
+	__free_page(virt_to_page(pdpt));
+}
+
+static ept_pml4e_t *alloc_ept_pml4(void)
+{
+	struct page *page = alloc_page(GFP_KERNEL);
+	if (page == NULL) {
+		return NULL;
+	}
+	ept_pml4e_t *pml4 = (ept_pml4e_t *)page_address(page);
+	memset(pml4, 0, 0x1000);
+	return pml4;
+}
+
+static void free_ept_pml4(ept_pml4e_t *pml4)
+{
+	size_t i;
+	for (i = 0; i < 512; i++) {
+		u64 pdpt_phys = pml4[i].ept_pdpt_address;
+		if (pdpt_phys == 0xfffffffff) {
+			continue;
+		} else {
+			ept_pdpte_t *pdpt = __va(pdpt_phys * 0x1000);
+			free_ept_pdpt(pdpt);
+		}
+	}
+	__free_page(virt_to_page(pml4));
+}
+
+static ept_pointer_t *alloc_ept_pointer(void)
+{
+	return (ept_pointer_t *)kmalloc(sizeof(ept_pointer_t), GFP_KERNEL);
+}
+
+static void free_ept_pointer(ept_pointer_t *eptp)
+{
+	kfree(eptp);
+}
+
+// create EPT
+// request physical memory size is `mem_mib`(MiB)
+ept_pointer_t *create_ept(u64 mem_mib)
+{
+	cpuid_t cpuid = get_cpuid(0x80000008);
+	size_t phys_addr_bits = (size_t)(cpuid.eax & 0xff);
+
+	// calc number of page tables
+	size_t mem_kib = mem_mib * 0x1000;
+	size_t need_ept_pt = (mem_kib + 512 - 1) / 512;
+	size_t need_ept_pd = (need_ept_pt + 512 - 1) / 512;
+	size_t need_ept_pdpt = (need_ept_pd + 512 - 1) / 512;
+
+	// TODO: implementation
+
+	ept_pointer_t *eptp = alloc_ept_pointer();
+	if (eptp == NULL) {
+		return NULL;
+	}
+
+	ept_pml4e_t *pml4 = alloc_ept_pml4();
+	if (pml4 == NULL) {
+		free_ept_pointer(eptp);
+		return NULL;
+	}
+	eptp->fields.ept_pml4_table_address = __pa(pml4) / 0x1000;
+
+	size_t i, j, k, l;
+
+	for (i = 0; i < need_ept_pdpt; i++) {
+		ept_pdpte_t *pdpt = alloc_ept_pdpt();
+		if (pdpt == NULL) {
+			free_ept_pointer(eptp);
+			size_t j;
+			for (j = 0; j < i; j++) {
+				u64 pdpt_phys = pml4[j].ept_pdpt_address;
+				ept_pdpte_t *free_pdpt = __va(pdpt_phys);
+				free_ept_pdpt(free_pdpt);
+			}
+			free_ept_pml4(pml4);
+			return NULL:
+		} else {
+		}
+	}
+
+	for (i = 0; i < need_ept_pd; i++) {
+		ept_pde_t *pd = alloc_ept_pd();
+		if (pd == NULL) {
+		}
+	}
+
+	return eptp;
+}
 
 ept_pointer_t *init_ept_pointer(void)
 {

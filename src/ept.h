@@ -88,3 +88,5 @@ typedef union _ept_pte {
 		u64 suppress_ve : 1;
 	} fields;
 } ept_pte_t;
+
+ept_pointer_t *init_ept_pointer(void);
