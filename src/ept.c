@@ -36,7 +36,7 @@ static void free_ept_pd(ept_pde_t *pd)
 {
 	size_t i;
 	for (i = 0; i < 512; i++) {
-		u64 pt_phys = pd[i].ept_pt_address;
+		u64 pt_phys = pd[i].fields.ept_pt_address;
 		if (pt_phys == 0xfffffffff) {
 			continue;
 		} else {
@@ -62,7 +62,7 @@ static void free_ept_pdpt(ept_pdpte_t *pdpt)
 {
 	size_t i;
 	for (i = 0; i < 512; i++) {
-		u64 pd_phys = pdpt[i].ept_pd_address;
+		u64 pd_phys = pdpt[i].fields.ept_pd_address;
 		if (pd_phys == 0xfffffffff) {
 			continue;
 		} else {
@@ -88,7 +88,7 @@ static void free_ept_pml4(ept_pml4e_t *pml4)
 {
 	size_t i;
 	for (i = 0; i < 512; i++) {
-		u64 pdpt_phys = pml4[i].ept_pdpt_address;
+		u64 pdpt_phys = pml4[i].fields.ept_pdpt_address;
 		if (pdpt_phys == 0xfffffffff) {
 			continue;
 		} else {
@@ -144,12 +144,12 @@ ept_pointer_t *create_ept(u64 mem_mib)
 			free_ept_pointer(eptp);
 			size_t j;
 			for (j = 0; j < i; j++) {
-				u64 pdpt_phys = pml4[j].ept_pdpt_address;
+				u64 pdpt_phys = pml4[j].fields.ept_pdpt_address;
 				ept_pdpte_t *free_pdpt = __va(pdpt_phys);
 				free_ept_pdpt(free_pdpt);
 			}
 			free_ept_pml4(pml4);
-			return NULL:
+			return NULL;
 		} else {
 		}
 	}
