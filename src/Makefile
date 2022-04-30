@@ -5,8 +5,11 @@ ccflags-y += -g -Og -Wno-declaration-after-statement
 
 PWD := $(CURDIR)
 
-all:
+default:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+debug:
+	DEBUG=1 make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
