@@ -8,6 +8,7 @@
 
 #include "vmx.h"
 #include "cpu.h"
+#include "ept.h"
 
 static int vmxon(u64 phys_vmxon_region)
 {
@@ -54,6 +55,13 @@ static int vmptrld(u64 vmcs_region)
 	u8 err;
 	asm volatile("vmptrld %1; setna %0" : "=q"(err) : "m"(vmcs_region));
 
+	return (int)err;
+}
+
+int vmlaunch(void)
+{
+	u8 err;
+	asm volatile("vmlaunch; setna %0" : "=q"(err));
 	return (int)err;
 }
 
@@ -178,4 +186,55 @@ int disable_vmx_on_each_cpu(void)
 	on_each_cpu(disable_vmx_per_cpu, NULL, 1);
 
 	return 0;
+}
+
+int enable_vmx_on_each_cpu_mask(int cpu, vmcs_t *vmxon_region)
+{
+	u32 b = is_vmx_supported() | is_vmxon_supported();
+	if (!b) {
+		return b;
+	}
+
+	struct cpumask mask;
+	cpumask_clear(&mask);
+	cpumask_set_cpu(cpu, &mask);
+	on_each_cpu_mask(&mask, enable_vmx_per_cpu, vmxon_region, 1);
+
+	return 0;
+}
+
+int disable_vmx_on_each_cpu_mask(int cpu)
+{
+	struct cpumask mask;
+	cpumask_clear(&mask);
+	cpumask_set_cpu(cpu, &mask);
+	on_each_cpu_mask(&mask, disable_vmx_per_cpu, NULL, 1);
+
+	return 0;
+}
+
+int clear_vmcs_state(vmcs_t *vmcs)
+{
+	u64 vmcs_phys = __pa(vmcs);
+	return vmclear(vmcs_phys);
+}
+
+int load_vmcs(vmcs_t *vmcs)
+{
+	u64 vmcs_phys = __pa(vmcs);
+	return vmptrld(vmcs_phys);
+}
+
+int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp)
+{
+	// TODO: implementation
+	return 0;
+}
+
+inline void save_vmxoff_state(u64 *rsp, u64 *rbp)
+{
+	asm volatile("mov %%rsp,%0; mov %%rbp, %1"
+		     : "=m"(*rsp), "=m"(*rbp)
+		     :
+		     : "memory", "cc");
 }

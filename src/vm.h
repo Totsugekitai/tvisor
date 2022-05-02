@@ -12,4 +12,10 @@ typedef struct _vm_state {
 	u64 *vmm_stack;
 	u64 *msr_bitmap_virt;
 	u64 msr_bitmap_phys;
+	u64 rsp;
+	u64 rbp;
 } vm_state_t;
+
+void launch_vm(int cpu, vm_state_t *vm);
+vm_state_t *create_vm(void);
+void destroy_vm(vm_state_t *vm);

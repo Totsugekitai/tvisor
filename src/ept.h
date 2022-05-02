@@ -23,7 +23,7 @@ typedef union _ept_pml4e {
 		u64 execute : 1;
 		u64 reserved1 : 5;
 		u64 accessed : 1;
-		u64 ignored1 : 1;
+		u64 ignored1 : 1; // use to determine whether it is in use or not
 		u64 execute_for_user_mode : 1;
 		u64 ignored2 : 1;
 		u64 ept_pdpt_address : 36;
@@ -40,7 +40,7 @@ typedef union _ept_pdpte {
 		u64 execute : 1;
 		u64 reserved1 : 5;
 		u64 accessed : 1;
-		u64 ignored1 : 1;
+		u64 ignored1 : 1; // use to determine whether it is in use or not
 		u64 execute_for_user_mode : 1;
 		u64 ignored2 : 1;
 		u64 ept_pd_address : 36;
@@ -57,7 +57,7 @@ typedef union _ept_pde {
 		u64 execute : 1;
 		u64 reserved1 : 5;
 		u64 accessed : 1;
-		u64 ignored1 : 1;
+		u64 ignored1 : 1; // use to determine whether it is in use or not
 		u64 execute_for_user_mode : 1;
 		u64 ignored2 : 1;
 		u64 ept_pt_address : 36;
@@ -74,7 +74,7 @@ typedef union _ept_pte {
 		u64 execute : 1;
 		u64 memory_type : 3;
 		u64 ignore_pat : 1;
-		u64 ignored1 : 1;
+		u64 ignored1 : 1; // use to determine whether it is in use or not
 		u64 accessed : 1;
 		u64 dirty : 1;
 		u64 execute_for_user_mode : 1;
@@ -89,4 +89,5 @@ typedef union _ept_pte {
 	} fields;
 } ept_pte_t;
 
-ept_pointer_t *init_ept_pointer(void);
+ept_pointer_t *create_ept_by_memsize(u64 size_mib);
+void free_ept(ept_pointer_t *eptp);

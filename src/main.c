@@ -40,7 +40,7 @@ static struct tvisor_state state = {
 	.is_vmx_enabled = 0,
 };
 
-extern vm_state_t vm;
+static vm_state_t *VM = NULL;
 
 static int tvisor_open(struct inode *, struct file *);
 static int tvisor_release(struct inode *, struct file *);
@@ -114,6 +114,9 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 {
 	const char *enable = "enable";
 	const char *disable = "disable";
+	const char *create = "create";
+	const char *destroy = "destroy";
+	const char *launch = "launch";
 
 	char kbuf[KBUF_SIZE] = { '\0' };
 
@@ -123,16 +126,22 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 	pr_info("tvisor: write[%s]\n", kbuf);
 
 	if (!strncmp(kbuf, enable, strlen(enable))) {
-		int err = enable_vmx_on_each_cpu(vm.vmxon_region);
-		if (err) {
-			pr_alert("tvisor: failed to enable VMX[%d]\n", err);
+		if (VM == NULL) {
+			pr_info("tvisor: please create VM\n");
 		} else {
-			state.is_vmx_enabled = 1;
-			pr_info("tvisor: enable VMX!\n");
+			int err = enable_vmx_on_each_cpu_mask(0,
+							      VM->vmxon_region);
+			if (err) {
+				pr_alert("tvisor: failed to enable VMX[%d]\n",
+					 err);
+			} else {
+				state.is_vmx_enabled = 1;
+				pr_info("tvisor: enable VMX!\n");
+			}
 		}
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
 		if (state.is_vmx_enabled) {
-			int err = disable_vmx_on_each_cpu();
+			int err = disable_vmx_on_each_cpu_mask(0);
 			if (err) {
 				pr_alert("tvisor: failed to disable VMX\n");
 			} else {
@@ -141,6 +150,27 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 			}
 		} else {
 			pr_info("tvisor: vmx is not enabled now\n");
+		}
+	} else if (!strncmp(kbuf, create, strlen(create))) {
+		VM = create_vm();
+		if (VM == NULL) {
+			pr_alert("tvisor: failed to create_vm\n");
+		} else {
+			pr_info("tvisor: create VM\n");
+		}
+	} else if (!strncmp(kbuf, destroy, strlen(destroy))) {
+		destroy_vm(VM);
+		pr_info("tvisor: destroy VM\n");
+	} else if (!strncmp(kbuf, launch, strlen(launch))) {
+		if (state.is_vmx_enabled) {
+			VM = create_vm();
+			if (VM == NULL) {
+				pr_alert("tvisor: failed to create_vm\n");
+			} else {
+				launch_vm(0, VM); // Launch VM on CPU 0
+			}
+		} else {
+			pr_info("tvisor: VMX is not enabled\n");
 		}
 	}
 
@@ -164,11 +194,11 @@ static int __init init_tvisor(void)
 
 	pr_debug("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
-	vmcs_t *vmxon_region = alloc_vmxon_region();
-	if (vmxon_region == NULL) {
-		return -ENOMEM;
-	}
-	vm.vmxon_region = vmxon_region;
+	// vmcs_t *vmxon_region = alloc_vmxon_region();
+	// if (vmxon_region == NULL) {
+	// 	return -ENOMEM;
+	// }
+	// vm.vmxon_region = vmxon_region;
 
 	return SUCCESS;
 }
@@ -176,14 +206,14 @@ static int __init init_tvisor(void)
 static void __exit exit_tvisor(void)
 {
 	if (state.is_vmx_enabled) {
-		int err = disable_vmx_on_each_cpu();
+		int err = disable_vmx_on_each_cpu_mask(0);
 		if (err) {
 			pr_alert("tvisor: failed to disable VMX\n");
 		} else {
 			pr_info("tvisor: disable VMX!\n");
 		}
 	}
-	free_vmxon_region(vm.vmxon_region);
+	// free_vmxon_region(vm.vmxon_region);
 
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);
