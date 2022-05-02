@@ -157,12 +157,12 @@ static int __init init_tvisor(void)
 		return major;
 	}
 
-	pr_info("tvisor: assigned major number[%d]\n", major);
+	pr_debug("tvisor: assigned major number[%d]\n", major);
 
 	cls = class_create(THIS_MODULE, DEVICE_NAME);
 	device_create(cls, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
 
-	pr_info("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
+	pr_debug("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
 	vmcs_t *vmxon_region = alloc_vmxon_region();
 	if (vmxon_region == NULL) {
