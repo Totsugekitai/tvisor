@@ -32,8 +32,6 @@ vm_state_t *create_vm(void)
 		return NULL;
 	}
 
-	// return vm;
-
 	vmxon_region_t *vmxon_region = alloc_vmxon_region();
 	if (vmxon_region == NULL) {
 		pr_alert("tvisor: failed to alloc vmxon_region\n");
