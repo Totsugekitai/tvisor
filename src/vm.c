@@ -32,6 +32,19 @@ vm_state_t *create_vm(void)
 		return NULL;
 	}
 
+	const u64 size_mib = 0x800;
+
+	ept_pointer_t *ept_pointer = create_ept_by_memsize(size_mib);
+	if (ept_pointer == NULL) {
+		kfree(vm);
+		//free_vmxon_region(vmxon_region);
+		//free_vmcs_region(vmcs_region);
+		return NULL;
+	}
+
+	pr_debug("tvisor: alloc EPT[%llxMiB]\n", size_mib);
+	return vm;
+
 	vmxon_region_t *vmxon_region = alloc_vmxon_region();
 	if (vmxon_region == NULL) {
 		pr_alert("tvisor: failed to alloc vmxon_region\n");
@@ -48,18 +61,6 @@ vm_state_t *create_vm(void)
 	}
 
 	pr_debug("tvisor: alloc vmcs region\n");
-
-	const u64 size_mib = 0x1000;
-
-	ept_pointer_t *ept_pointer = create_ept_by_memsize(size_mib);
-	if (ept_pointer == NULL) {
-		kfree(vm);
-		free_vmxon_region(vmxon_region);
-		free_vmcs_region(vmcs_region);
-		return NULL;
-	}
-
-	pr_debug("tvisor: alloc EPT[%llxMiB]\n", size_mib);
 
 	const int order = 3; // 2 ^ 3 = 8 pages
 	struct page *vmm_stack_pages = alloc_pages(GFP_KERNEL, order);
