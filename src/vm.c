@@ -32,7 +32,7 @@ vm_state_t *create_vm(void)
 		return NULL;
 	}
 
-	const u64 size_mib = 0x800;
+	const u64 size_mib = 0x100; // genkai
 
 	ept_pointer_t *ept_pointer = create_ept_by_memsize(size_mib);
 	if (ept_pointer == NULL) {

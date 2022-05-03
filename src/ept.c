@@ -7,7 +7,7 @@
 
 static void *alloc_ept_page(void)
 {
-	struct page *page = alloc_page(GFP_KERNEL);
+	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
 	if (page == NULL) {
 		return NULL;
 	}
@@ -23,7 +23,7 @@ static void free_ept_page(void *page_va)
 
 static ept_pte_t *alloc_ept_pt(void)
 {
-	struct page *page = alloc_page(GFP_KERNEL);
+	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
 	if (page == NULL) {
 		return NULL;
 	}
@@ -51,7 +51,7 @@ static void free_ept_pt_recursive(ept_pte_t *pt)
 
 static ept_pde_t *alloc_ept_pd(void)
 {
-	struct page *page = alloc_page(GFP_KERNEL);
+	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
 	if (page == NULL) {
 		return NULL;
 	}
@@ -79,7 +79,7 @@ static void free_ept_pd_recursive(ept_pde_t *pd)
 
 static ept_pdpte_t *alloc_ept_pdpt(void)
 {
-	struct page *page = alloc_page(GFP_KERNEL);
+	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
 	if (page == NULL) {
 		return NULL;
 	}
@@ -107,7 +107,7 @@ static void free_ept_pdpt_recursive(ept_pdpte_t *pdpt)
 
 static ept_pml4e_t *alloc_ept_pml4(void)
 {
-	struct page *page = alloc_page(GFP_KERNEL);
+	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
 	if (page == NULL) {
 		return NULL;
 	}
@@ -135,7 +135,8 @@ static void free_ept_pml4_recursive(ept_pml4e_t *pml4)
 
 static ept_pointer_t *alloc_ept_pointer(void)
 {
-	return (ept_pointer_t *)kmalloc(sizeof(ept_pointer_t), GFP_KERNEL);
+	return (ept_pointer_t *)kmalloc(sizeof(ept_pointer_t),
+					GFP_KERNEL_ACCOUNT);
 }
 
 static void free_ept_pointer(ept_pointer_t *eptp)
