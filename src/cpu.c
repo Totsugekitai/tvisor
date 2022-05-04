@@ -53,6 +53,14 @@ u16 read_gs(void)
 	return gs;
 }
 
+u64 read_cr3(void)
+{
+	u64 cr3;
+	asm volatile("movq %%cr3, %0" : "=r"(cr3));
+
+	return cr3;
+}
+
 u64 read_cr4(void)
 {
 	u64 cr4;
@@ -88,27 +96,54 @@ void set_vmxe(void)
 		     : "%rax");
 }
 
-// int is_vmx_supported(void)
-// {
-// 	cpuid_t cpuid = { 0 };
-// 	ia32_feature_control_msr_t control = { 0 };
+u64 read_gdt_base(void)
+{
+	char gdtr[10];
+	asm volatile("sgdt %0" : "=m"(gdtr) : : "memory", "cc");
+	return *(u64 *)(&gdtr[2]);
+}
 
-// 	get_cpuid(1, &cpuid);
+u16 read_gdt_limit(void)
+{
+	char gdtr[10];
+	asm volatile("sgdt %0" : "=m"(gdtr) : : "memory", "cc");
+	return *(u16 *)(gdtr);
+}
 
-// 	if ((cpuid.ecx & (1 << 5)) == 0) {
-// 		return 0;
-// 	}
+u64 read_idt_base(void)
+{
+	char idtr[10];
+	asm volatile("sidt %0" : "=m"(idtr) : : "memory", "cc");
+	return *(u64 *)(&idtr[2]);
+}
 
-// 	control.all = read_msr(0x03a); /* MSR_IA32_FEATURE_CONTROL */
+u16 read_idt_limit(void)
+{
+	char idtr[10];
+	asm volatile("sgdt %0" : "=m"(idtr) : : "memory", "cc");
+	return *(u16 *)(idtr);
+}
 
-// 	if (control.fields.lock == 0) {
-// 		control.fields.lock = 1;
-// 		control.fields.enable_vmxon = 1;
-// 		write_msr(0x03a, control.all); /* MSR_IA32_FEATURE_CONTROL */
-// 	} else if (control.fields.enable_vmxon == 0) {
-// 		pr_alert("VMX locked off in BIOS\n");
-// 		return 0;
-// 	}
+u64 read_ldt(void)
+{
+	u64 ldtr;
+	asm volatile("sldt %0;" : "=r"(ldtr));
+	return ldtr;
+}
 
-// 	return 1;
-// }
+u64 read_tr(void)
+{
+	u64 tr;
+	asm volatile("str %0;" : "=r"(tr));
+	return tr;
+}
+
+u64 read_rflags(void)
+{
+	u64 rflags;
+	asm volatile("pushfq; pop %%rax; mov %%rax, %0"
+		     : "=r"(rflags)
+		     :
+		     : "rax");
+	return rflags;
+}

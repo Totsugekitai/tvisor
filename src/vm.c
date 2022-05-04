@@ -6,15 +6,38 @@
 
 #include "vm.h"
 
+struct tvisor_state {
+	int is_virtualization_ready;
+	int is_vmx_enabled;
+};
+
+extern struct tvisor_state TVISOR_STATE;
+
 static void __launch_vm(void *info)
 {
 	vm_state_t *vm = (vm_state_t *)info;
 
+	if (clear_vmcs_state(vm->vmcs_region)) {
+		pr_info("tvisor: failed to clear vmcs state\n");
+		return;
+	}
+
+	if (load_vmcs(vm->vmcs_region)) {
+		pr_info("tvisor: failed to load vmcs\n");
+		return;
+	}
+
+	setup_vmcs(vm->vmcs_region, vm->ept_pointer, vm->vmm_stack);
+
 	save_vmxoff_state(&(vm->rsp), &(vm->rbp));
-	// asm volatile("mov %%rsp,%0; mov %%rbp, %1"
-	// 	     : "=m"(&(vm->rsp)), "=m"(&(vm->rbp))::"memory", "cc");
 
 	vmlaunch();
+
+	u64 err = 0;
+	vmread(VM_INSTRUCTION_ERROR, &err);
+	vmxoff();
+	TVISOR_STATE.is_vmx_enabled = 0;
+	pr_debug("tvisor: vmlaunch error[%llx]\n", err);
 }
 
 void launch_vm(int cpu, vm_state_t *vm)

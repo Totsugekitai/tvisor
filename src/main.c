@@ -11,7 +11,6 @@
 #include <linux/uaccess.h> /* Needed for copy_from_user, copy_to_user */
 
 #include "cpu.h"
-#include "vmx.h"
 #include "vm.h"
 
 MODULE_LICENSE("GPL v2");
@@ -35,12 +34,12 @@ struct tvisor_state {
 static int major;
 static struct class *cls;
 static atomic_t already_open = ATOMIC_INIT(CDEV_NOT_USED);
-static struct tvisor_state state = {
+struct tvisor_state TVISOR_STATE = {
 	.is_virtualization_ready = 0,
 	.is_vmx_enabled = 0,
 };
 
-static vm_state_t *VM = NULL;
+vm_state_t *VM = NULL;
 
 static int tvisor_open(struct inode *, struct file *);
 static int tvisor_release(struct inode *, struct file *);
@@ -88,7 +87,8 @@ static ssize_t tvisor_read(struct file *filp, char __user *ubuf, size_t count,
 	nchar = snprintf(
 		kbuf, KBUF_SIZE,
 		"tvisor: virtualization ready: %d\nVMX is enabled: %d\n",
-		state.is_virtualization_ready, state.is_vmx_enabled);
+		TVISOR_STATE.is_virtualization_ready,
+		TVISOR_STATE.is_vmx_enabled);
 	if (nchar >= KBUF_SIZE) {
 		pr_alert("tvisor: snprintf truncated!!!\n");
 	}
@@ -135,17 +135,17 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 				pr_alert("tvisor: failed to enable VMX[%d]\n",
 					 err);
 			} else {
-				state.is_vmx_enabled = 1;
+				TVISOR_STATE.is_vmx_enabled = 1;
 				pr_info("tvisor: enable VMX!\n");
 			}
 		}
 	} else if (!strncmp(kbuf, disable, strlen(disable))) {
-		if (state.is_vmx_enabled) {
+		if (TVISOR_STATE.is_vmx_enabled) {
 			int err = disable_vmx_on_each_cpu_mask(0);
 			if (err) {
 				pr_alert("tvisor: failed to disable VMX\n");
 			} else {
-				state.is_vmx_enabled = 0;
+				TVISOR_STATE.is_vmx_enabled = 0;
 				pr_info("tvisor: disable VMX!\n");
 			}
 		} else {
@@ -162,7 +162,7 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 		destroy_vm(VM);
 		pr_info("tvisor: destroy VM\n");
 	} else if (!strncmp(kbuf, launch, strlen(launch))) {
-		if (state.is_vmx_enabled) {
+		if (TVISOR_STATE.is_vmx_enabled) {
 			VM = create_vm();
 			if (VM == NULL) {
 				pr_alert("tvisor: failed to create_vm\n");
@@ -205,7 +205,7 @@ static int __init init_tvisor(void)
 
 static void __exit exit_tvisor(void)
 {
-	if (state.is_vmx_enabled) {
+	if (TVISOR_STATE.is_vmx_enabled) {
 		int err = disable_vmx_on_each_cpu_mask(0);
 		if (err) {
 			pr_alert("tvisor: failed to disable VMX\n");

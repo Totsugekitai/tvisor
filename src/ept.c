@@ -5,6 +5,8 @@
 #include "ept.h"
 #include "util.h"
 
+void *VA_GUEST_MEMORY = NULL;
+
 static void *alloc_ept_page(void)
 {
 	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
@@ -12,7 +14,12 @@ static void *alloc_ept_page(void)
 		return NULL;
 	}
 	void *page_va = page_address(page);
-	memset(page_va, 0, 0x1000);
+	memset(page_va, 0xf4, 0x1000);
+
+	if (VA_GUEST_MEMORY == NULL) {
+		VA_GUEST_MEMORY = page_va;
+	}
+
 	return page_va;
 }
 

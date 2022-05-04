@@ -1,5 +1,5 @@
 obj-m += tvisor.o
-tvisor-objs := main.o cpu.o vmx.o ept.o vm.o util.o
+tvisor-objs := main.o cpu.o vmx.o ept.o vm.o util.o handler.o
 
 ccflags-y += -g -Og -Wno-declaration-after-statement
 

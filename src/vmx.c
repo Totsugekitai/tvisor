@@ -7,8 +7,12 @@
 #include <asm/processor.h>
 
 #include "vmx.h"
+#include "vm.h"
 #include "cpu.h"
-#include "ept.h"
+#include "handler.h"
+
+extern vm_state_t *VM;
+extern void *VA_GUEST_MEMORY;
 
 static int vmxon(u64 phys_vmxon_region)
 {
@@ -21,7 +25,7 @@ static int vmxon(u64 phys_vmxon_region)
 	return err;
 }
 
-static int vmxoff(void)
+int vmxoff(void)
 {
 	u8 err;
 	asm volatile("vmxoff; setna %0" : "=q"(err));
@@ -63,6 +67,80 @@ int vmlaunch(void)
 	u8 err;
 	asm volatile("vmlaunch; setna %0" : "=q"(err));
 	return (int)err;
+}
+
+void vmread(enum VMCS_FIELDS field, u64 *val)
+{
+	asm volatile("vmread %1, %0"
+		     : "=m"(*val)
+		     : "r"((u64)field)
+		     : "memory", "cc");
+}
+
+void vmwrite(enum VMCS_FIELDS field, u64 val)
+{
+	asm volatile("vmwrite %1, %0" : : "r"(val), "r"((u64)field));
+}
+
+static void get_segment_descriptor(segment_selector_t *segment_selector,
+				   u16 selector, u64 *gdt_base)
+{
+	if (segment_selector == NULL) {
+		return;
+	}
+	if (selector & 0x4) {
+		return;
+	}
+
+	segment_descriptor_t *segdesc =
+		(segment_descriptor_t *)((u8 *)gdt_base + (selector & ~0x7));
+
+	segment_selector->sel = selector;
+	segment_selector->base =
+		segdesc->base0 | segdesc->base1 << 16 | segdesc->base2 << 24;
+	segment_selector->limit = segdesc->limit0 | (segdesc->limit1attr1 & 0xf)
+							    << 16;
+	segment_selector->attrs.all =
+		segdesc->attr0 | (segdesc->limit1attr1 & 0xf0) << 4;
+
+	if (!(segdesc->attr0 & 0x10)) { // LA_ACCESSED
+		u64 tmp = (*(u64 *)((u8 *)segdesc + 8));
+		segment_selector->base =
+			(segment_selector->base & 0xffffffff) | (tmp << 32);
+	}
+
+	if (segment_selector->attrs.fields.g) {
+		segment_selector->limit =
+			(segment_selector->limit << 12) + 0xfff;
+	}
+}
+
+static void fill_guest_selector_data(u64 *gdt_base, u64 segment, u16 selector)
+{
+	segment_selector_t segment_selector = { 0 };
+	get_segment_descriptor(&segment_selector, selector, gdt_base);
+
+	u64 access_rights = ((u8 *)&segment_selector.attrs)[0] +
+			    (((u8 *)&segment_selector.attrs)[1] << 12);
+
+	if (selector == 0) {
+		access_rights |= 0x10000;
+	}
+
+	vmwrite(GUEST_ES_SELECTOR + segment * 2, selector);
+	vmwrite(GUEST_ES_LIMIT + segment * 2, segment_selector.limit);
+	vmwrite(GUEST_ES_AR_BYTES + segment * 2, access_rights);
+	vmwrite(GUEST_ES_BASE + segment * 2, segment_selector.base);
+}
+
+static u64 adjust_controls(u64 ctl, u64 msr)
+{
+	u64 content_low, content_high;
+	rdmsr(msr, content_low, content_high);
+
+	ctl &= content_high;
+	ctl |= content_low;
+	return ctl;
 }
 
 static u32 is_vmx_supported(void)
@@ -225,16 +303,164 @@ int load_vmcs(vmcs_t *vmcs)
 	return vmptrld(vmcs_phys);
 }
 
-int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp)
+int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 {
-	// TODO: implementation
+	vmwrite(HOST_ES_SELECTOR, read_es() & 0xf8);
+	vmwrite(HOST_CS_SELECTOR, read_cs() & 0xf8);
+	vmwrite(HOST_SS_SELECTOR, read_ss() & 0xf8);
+	vmwrite(HOST_DS_SELECTOR, read_ds() & 0xf8);
+	vmwrite(HOST_FS_SELECTOR, read_fs() & 0xf8);
+	vmwrite(HOST_GS_SELECTOR, read_gs() & 0xf8);
+	vmwrite(HOST_TR_SELECTOR, read_tr() & 0xf8);
+
+	vmwrite(VMCS_LINK_POINTER, ~0ull);
+
+	u32 debug_msr_low, debug_msr_high;
+	rdmsr(MSR_IA32_DEBUGCTLMSR, debug_msr_low, debug_msr_high);
+	vmwrite(GUEST_IA32_DEBUGCTL, debug_msr_low);
+	vmwrite(GUEST_IA32_DEBUGCTL_HIGH, debug_msr_high);
+
+	vmwrite(TSC_OFFSET, 0);
+	vmwrite(TSC_OFFSET_HIGH, 0);
+
+	vmwrite(PAGE_FAULT_ERROR_CODE_MASK, 0);
+	vmwrite(PAGE_FAULT_ERROR_CODE_MATCH, 0);
+
+	vmwrite(VM_EXIT_MSR_STORE_COUNT, 0);
+	vmwrite(VM_EXIT_MSR_LOAD_COUNT, 0);
+
+	vmwrite(VM_ENTRY_MSR_LOAD_COUNT, 0);
+	vmwrite(VM_ENTRY_INTR_INFO_FIELD, 0);
+
+	u64 gdt_base = read_gdt_base();
+	pr_debug("tvisor: GDT Base = %llx\n", gdt_base);
+
+	fill_guest_selector_data((void *)gdt_base, ES, read_es());
+	fill_guest_selector_data((void *)gdt_base, CS, read_cs());
+	fill_guest_selector_data((void *)gdt_base, SS, read_ss());
+	fill_guest_selector_data((void *)gdt_base, DS, read_ds());
+	fill_guest_selector_data((void *)gdt_base, FS, read_fs());
+	fill_guest_selector_data((void *)gdt_base, GS, read_gs());
+	fill_guest_selector_data((void *)gdt_base, LDTR, read_ldt());
+	fill_guest_selector_data((void *)gdt_base, TR, read_tr());
+
+	u64 guest_fs, guest_gs;
+	rdmsrl(MSR_FS_BASE, guest_fs);
+	rdmsrl(MSR_GS_BASE, guest_gs);
+	vmwrite(GUEST_FS_BASE, guest_fs);
+	vmwrite(GUEST_GS_BASE, guest_gs);
+
+	vmwrite(GUEST_INTERRUPTIBILITY_INFO, 0);
+	vmwrite(GUEST_ACTIVITY_STATE, 0); // active state
+
+	vmwrite(CPU_BASED_VM_EXEC_CONTROL,
+		adjust_controls(CPU_BASED_HLT_EXITING |
+					CPU_BASED_ACTIVATE_SECONDARY_CONTROLS,
+				MSR_IA32_VMX_PROCBASED_CTLS));
+	vmwrite(SECONDARY_VM_EXEC_CONTROL,
+		adjust_controls(CPU_BASED_CTL2_RDTSCP,
+				MSR_IA32_VMX_PROCBASED_CTLS2));
+
+	vmwrite(PIN_BASED_VM_EXEC_CONTROL,
+		adjust_controls(0, MSR_IA32_VMX_PINBASED_CTLS));
+	vmwrite(VM_EXIT_CONTROLS,
+		adjust_controls(VM_EXIT_IA32E_MODE | VM_EXIT_ACK_INTR_ON_EXIT,
+				MSR_IA32_VMX_EXIT_CTLS));
+	vmwrite(VM_ENTRY_CONTROLS,
+		adjust_controls(VM_ENTRY_IA32E_MODE, MSR_IA32_VMX_ENTRY_CTLS));
+
+	vmwrite(CR3_TARGET_COUNT, 0);
+	vmwrite(CR3_TARGET_VALUE0, 0);
+	vmwrite(CR3_TARGET_VALUE1, 0);
+	vmwrite(CR3_TARGET_VALUE2, 0);
+	vmwrite(CR3_TARGET_VALUE3, 0);
+
+	vmwrite(GUEST_CR0, read_cr0());
+	vmwrite(GUEST_CR3, read_cr3());
+	vmwrite(GUEST_CR4, read_cr4());
+
+	vmwrite(GUEST_DR7, 0x400);
+
+	vmwrite(HOST_CR0, read_cr0());
+	vmwrite(HOST_CR3, read_cr3());
+	vmwrite(HOST_CR4, read_cr4());
+
+	vmwrite(GUEST_GDTR_BASE, read_gdt_base());
+	vmwrite(GUEST_IDTR_BASE, read_idt_base());
+	vmwrite(GUEST_GDTR_LIMIT, read_gdt_limit());
+	vmwrite(GUEST_IDTR_LIMIT, read_idt_limit());
+
+	vmwrite(GUEST_RFLAGS, read_rflags());
+
+	u64 sysenter_cs, sysenter_eip, sysenter_esp;
+	rdmsrl(MSR_IA32_SYSENTER_CS, sysenter_cs);
+	rdmsrl(MSR_IA32_SYSENTER_EIP, sysenter_eip);
+	rdmsrl(MSR_IA32_SYSENTER_ESP, sysenter_esp);
+	vmwrite(GUEST_SYSENTER_CS, sysenter_cs);
+	vmwrite(GUEST_SYSENTER_EIP, sysenter_eip);
+	vmwrite(GUEST_SYSENTER_ESP, sysenter_esp);
+
+	segment_selector_t segment_selector;
+	get_segment_descriptor(&segment_selector, read_tr(),
+			       (u64 *)read_gdt_base());
+	vmwrite(HOST_TR_BASE, segment_selector.base);
+
+	u64 host_fs, host_gs;
+	rdmsrl(MSR_FS_BASE, host_fs);
+	rdmsrl(MSR_GS_BASE, host_gs);
+	vmwrite(HOST_FS_BASE, host_fs);
+	vmwrite(HOST_GS_BASE, host_gs);
+
+	vmwrite(HOST_GDTR_BASE, read_gdt_base());
+	vmwrite(HOST_IDTR_BASE, read_idt_base());
+
+	rdmsrl(MSR_IA32_SYSENTER_CS, sysenter_cs);
+	rdmsrl(MSR_IA32_SYSENTER_EIP, sysenter_eip);
+	rdmsrl(MSR_IA32_SYSENTER_ESP, sysenter_esp);
+	vmwrite(HOST_IA32_SYSENTER_CS, sysenter_cs);
+	vmwrite(HOST_IA32_SYSENTER_EIP, sysenter_eip);
+	vmwrite(HOST_IA32_SYSENTER_ESP, sysenter_esp);
+
+	vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
+	vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
+
+	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 1));
+	vmwrite(HOST_RIP, (u64)vmexit_handler);
+
 	return 0;
 }
 
-inline void save_vmxoff_state(u64 *rsp, u64 *rbp)
+void vmexit_handler_main(guest_regs_t *guest_regs)
 {
-	asm volatile("mov %%rsp,%0; mov %%rbp, %1"
-		     : "=m"(*rsp), "=m"(*rbp)
-		     :
-		     : "memory", "cc");
+	u64 exit_reason = 0;
+	vmread(VM_EXIT_REASON, &exit_reason);
+
+	u64 exit_qualification = 0;
+	vmread(EXIT_QUALIFICATION, &exit_qualification);
+
+	pr_info("tvisor: exit reason[%llx]\n", exit_reason & 0xffff);
+	pr_info("tvisor: exit qualification[%llx]\n", exit_qualification);
+
+	switch (exit_reason) {
+	case EXIT_REASON_VMCLEAR:
+	case EXIT_REASON_VMPTRLD:
+	case EXIT_REASON_VMPTRST:
+	case EXIT_REASON_VMREAD:
+	case EXIT_REASON_VMRESUME:
+	case EXIT_REASON_VMWRITE:
+	case EXIT_REASON_VMXOFF:
+	case EXIT_REASON_VMXON:
+	case EXIT_REASON_VMLAUNCH:
+		break;
+	case EXIT_REASON_HLT:
+		pr_info("tvisor: execution of hlt detected...\n");
+		restore_vmxoff_state(VM->rsp, VM->rbp);
+		break;
+	default:
+		break;
+	}
+}
+
+void vm_resumer(void)
+{
 }
