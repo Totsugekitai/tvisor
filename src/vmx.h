@@ -293,6 +293,6 @@ int clear_vmcs_state(vmcs_t *vmcs);
 int load_vmcs(vmcs_t *vmcs);
 int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack);
 int vmlaunch(void);
-void vmread(enum VMCS_FIELDS field, u64 *val);
+u64 vmread(enum VMCS_FIELDS field);
 void vmwrite(enum VMCS_FIELDS field, u64 val);
 int vmxoff(void);

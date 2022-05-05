@@ -31,14 +31,13 @@ static void __launch_vm(void *info)
 
 	save_vmxoff_state(&(vm->rsp), &(vm->rbp));
 
-	int e = vmlaunch();
-	pr_debug("tvisor: e=%x\n", e);
+	vmlaunch();
 
-	u64 err = 0;
-	vmread(VM_INSTRUCTION_ERROR, &err);
+	u64 err = vmread(VM_INSTRUCTION_ERROR);
+	pr_info("tvisor: vmlaunch is failed\n");
+	pr_debug("tvisor: vm instruction error[%lld]\n", err);
 	vmxoff();
 	TVISOR_STATE.is_vmx_enabled = 0;
-	pr_debug("tvisor: vmlaunch error[%llx]\n", err);
 }
 
 void launch_vm(int cpu, vm_state_t *vm)

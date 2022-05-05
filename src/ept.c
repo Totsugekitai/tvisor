@@ -193,7 +193,6 @@ static ept_pte_t *alloc_pt_rec_by_memsize(u64 size_kib)
 static ept_pde_t *alloc_pd_rec_by_memsize(u64 size_mib)
 {
 	size_t size_kib = size_mib * 0x1000;
-	//size_t need_ept_pt = (size_kib + 512 - 1) / 512;
 
 	const size_t max_kib_per_entry = 0x200;
 
@@ -202,7 +201,6 @@ static ept_pde_t *alloc_pd_rec_by_memsize(u64 size_mib)
 		return NULL;
 	} else {
 		size_t i, copy_kib = size_kib;
-		//for (i = 0; i < need_ept_pt; i++) {
 		for (i = 0; copy_kib > 0; i++) {
 			size_t assign_kib = 0;
 			if (copy_kib > max_kib_per_entry) {
@@ -236,10 +234,6 @@ static ept_pde_t *alloc_pd_rec_by_memsize(u64 size_mib)
 
 static ept_pdpte_t *alloc_pdpt_rec_by_memsize(u64 size_mib)
 {
-	//size_t size_kib = size_mib * 0x1000;
-	//size_t need_ept_pt = (size_kib + 512 - 1) / 512;
-	//size_t need_ept_pd = (need_ept_pt + 512 - 1) / 512;
-
 	const size_t max_mib_per_entry = 0x40;
 
 	ept_pdpte_t *pdpt = alloc_ept_pdpt();
@@ -247,7 +241,6 @@ static ept_pdpte_t *alloc_pdpt_rec_by_memsize(u64 size_mib)
 		return NULL;
 	} else {
 		size_t i, copy_mib = size_mib;
-		//for (i = 0; i < need_ept_pd; i++) {
 		for (i = 0; copy_mib > 0; i++) {
 			size_t assign_mib = 0;
 			if (copy_mib > max_mib_per_entry) {
@@ -281,11 +274,6 @@ static ept_pdpte_t *alloc_pdpt_rec_by_memsize(u64 size_mib)
 
 static ept_pml4e_t *alloc_pml4_rec_by_memsize(u64 size_mib)
 {
-	//size_t size_kib = size_mib * 0x1000;
-	//size_t need_ept_pt = (size_kib + 512 - 1) / 512;
-	//size_t need_ept_pd = (need_ept_pt + 512 - 1) / 512;
-	//size_t need_ept_pdpt = (need_ept_pd + 512 - 1) / 512;
-
 	const size_t max_mib_per_entry = 0x8000;
 
 	ept_pml4e_t *pml4 = alloc_ept_pml4();
@@ -293,7 +281,6 @@ static ept_pml4e_t *alloc_pml4_rec_by_memsize(u64 size_mib)
 		return NULL;
 	} else {
 		size_t i, copy_mib = size_mib;
-		//for (i = 0; i < need_ept_pdpt; i++) {
 		for (i = 0; copy_mib > 0; i++) {
 			size_t assign_mib = 0;
 			if (copy_mib > max_mib_per_entry) {

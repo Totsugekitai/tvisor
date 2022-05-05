@@ -43,13 +43,13 @@ static u64 vmptrst(void)
 	return vmcspa;
 }
 
-static int vmclear(u64 *vmcs_region_phys)
+static int vmclear(u64 vmcs_region_phys)
 {
 	u64 rflags;
 	asm volatile("vmclear %1; pushfq; popq %0"
 		     : "=q"(rflags)
 		     : "m"(vmcs_region_phys)
-		     : "memory", "cc");
+		     : "cc");
 
 	u64 cf, pf, af, zf, sf, of;
 	cf = (rflags >> 0) & 1;
@@ -59,7 +59,7 @@ static int vmclear(u64 *vmcs_region_phys)
 	sf = (rflags >> 7) & 1;
 	of = (rflags >> 11) & 1;
 
-	if (cf & pf & af & zf & sf & of) {
+	if (cf | pf | af | zf | sf | of) {
 		if (cf) {
 			pr_debug("tvisor: VMfail Invaild\n");
 		} else if (zf) {
@@ -73,12 +73,13 @@ static int vmclear(u64 *vmcs_region_phys)
 	return 0;
 }
 
-static int vmptrld(u64 *vmcs_region_phys)
+static int vmptrld(u64 vmcs_region_phys)
 {
 	u64 rflags;
-	asm volatile("vmptrld %1; pushfq; popq %0"
+	asm volatile("vmptrld %[vmcs]; pushfq; popq %0"
 		     : "=q"(rflags)
-		     : "m"(vmcs_region_phys));
+		     : [vmcs] "m"(vmcs_region_phys)
+		     : "cc");
 
 	u64 cf, pf, af, zf, sf, of;
 	cf = (rflags >> 0) & 1;
@@ -88,7 +89,7 @@ static int vmptrld(u64 *vmcs_region_phys)
 	sf = (rflags >> 7) & 1;
 	of = (rflags >> 11) & 1;
 
-	if (cf & pf & af & zf & sf & of) {
+	if (cf | pf | af | zf | sf | of) {
 		if (cf) {
 			pr_debug("tvisor: VMfail Invaild\n");
 		} else if (zf) {
@@ -115,7 +116,7 @@ int vmlaunch(void)
 	sf = (rflags >> 7) & 1;
 	of = (rflags >> 11) & 1;
 
-	if (cf & pf & af & zf & sf & of) {
+	if (cf | pf | af | zf | sf | of) {
 		if (cf) {
 			pr_debug("tvisor: VMfail Invaild\n");
 		} else if (zf) {
@@ -129,17 +130,37 @@ int vmlaunch(void)
 	return 0;
 }
 
-void vmread(enum VMCS_FIELDS field, u64 *val)
+u64 vmread(enum VMCS_FIELDS field)
 {
-	asm volatile("vmread %1, %0"
-		     : "=m"(*val)
-		     : "r"((u64)field)
-		     : "memory", "cc");
+	u64 val = 9800, rflags = 0;
+	asm volatile("vmread %2, %0; pushfq; popq %1"
+		     : "=r"(val), "=r"(rflags)
+		     : "r"((u64)field));
+
+	u64 cf, pf, af, zf, sf, of;
+	cf = (rflags >> 0) & 1;
+	pf = (rflags >> 2) & 1;
+	af = (rflags >> 4) & 1;
+	zf = (rflags >> 6) & 1;
+	sf = (rflags >> 7) & 1;
+	of = (rflags >> 11) & 1;
+
+	if (cf | pf | af | zf | sf | of) {
+		if (cf) {
+			pr_debug("tvisor: VMfail Invaild\n");
+		} else if (zf) {
+			pr_debug("tvisor: VMfail Invalid(ErrorCode)\n");
+		} else {
+			pr_debug("tvisor: undefined state\n");
+		}
+		return 0;
+	}
+	return val;
 }
 
 void vmwrite(enum VMCS_FIELDS field, u64 val)
 {
-	asm volatile("vmwrite %1, %0" : : "r"(val), "r"((u64)field));
+	asm volatile("vmwrite %0, %1" : : "r"(val), "r"((u64)field));
 }
 
 static void get_segment_descriptor(segment_selector_t *segment_selector,
@@ -355,14 +376,14 @@ int clear_vmcs_state(vmcs_t *vmcs)
 {
 	u64 vmcs_phys = __pa(vmcs);
 	pr_debug("tvisor: VMCS physaddr = %llx\n", vmcs_phys);
-	return vmclear(&vmcs_phys);
+	return vmclear(vmcs_phys);
 }
 
 int load_vmcs(vmcs_t *vmcs)
 {
 	u64 vmcs_phys = __pa(vmcs);
 	pr_debug("tvisor: VMCS physaddr = %llx\n", vmcs_phys);
-	return vmptrld(&vmcs_phys);
+	return vmptrld(vmcs_phys);
 }
 
 int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
@@ -533,7 +554,7 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
 
 	pr_debug("tvisor: HOST_RSP=%llx, HOST_RIP=%llx\n",
-		 ((u64)vmm_stack + VMM_STACK_SIZE - 1), (u64)vmexit_handler);
+		 ((u64)vmm_stack + VMM_STACK_SIZE - 8), (u64)vmexit_handler);
 	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 8));
 	vmwrite(HOST_RIP, (u64)vmexit_handler);
 
@@ -542,11 +563,9 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 
 void vmexit_handler_main(guest_regs_t *guest_regs)
 {
-	u64 exit_reason = 0;
-	vmread(VM_EXIT_REASON, &exit_reason);
+	u64 exit_reason = vmread(VM_EXIT_REASON);
 
-	u64 exit_qualification = 0;
-	vmread(EXIT_QUALIFICATION, &exit_qualification);
+	u64 exit_qualification = vmread(EXIT_QUALIFICATION);
 
 	pr_info("tvisor: exit reason[%llx]\n", exit_reason & 0xffff);
 	pr_info("tvisor: exit qualification[%llx]\n", exit_qualification);
@@ -561,14 +580,14 @@ void vmexit_handler_main(guest_regs_t *guest_regs)
 	case EXIT_REASON_VMXOFF:
 	case EXIT_REASON_VMXON:
 	case EXIT_REASON_VMLAUNCH:
-		pr_info("tvisor: execution of hlt detected...\n");
+		pr_info("tvisor: execution of vmx instruction detected...\n");
 		break;
 	case EXIT_REASON_HLT:
 		pr_info("tvisor: execution of hlt detected...\n");
 		restore_vmxoff_state(VM->rsp, VM->rbp);
 		break;
 	default:
-		pr_info("tvisor: execution of hlt detected...\n");
+		pr_info("tvisor: execution of other detected...\n");
 		break;
 	}
 }
