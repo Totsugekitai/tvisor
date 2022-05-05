@@ -212,7 +212,7 @@ static ept_pde_t *alloc_pd_rec_by_memsize(u64 size_mib)
 				assign_kib = copy_kib;
 				copy_kib -= assign_kib;
 			}
-			pr_debug("tvisor: alloc %lxKib memory\n", assign_kib);
+			// pr_debug("tvisor: alloc %lxKib memory\n", assign_kib);
 			ept_pte_t *pt = alloc_pt_rec_by_memsize(assign_kib);
 			if (pt == NULL) {
 				free_ept_pd_recursive(pd);
@@ -257,7 +257,7 @@ static ept_pdpte_t *alloc_pdpt_rec_by_memsize(u64 size_mib)
 				assign_mib = copy_mib;
 				copy_mib -= assign_mib;
 			}
-			pr_debug("tvisor: alloc %lxMib memory\n", assign_mib);
+			// pr_debug("tvisor: alloc %lxMib memory\n", assign_mib);
 			ept_pde_t *pd = alloc_pd_rec_by_memsize(assign_mib);
 			if (pd == NULL) {
 				free_ept_pdpt_recursive(pdpt);
@@ -303,7 +303,7 @@ static ept_pml4e_t *alloc_pml4_rec_by_memsize(u64 size_mib)
 				assign_mib = copy_mib;
 				copy_mib -= assign_mib;
 			}
-			pr_debug("tvisor: alloc %lxMib memory\n", assign_mib);
+			// pr_debug("tvisor: alloc %lxMib memory\n", assign_mib);
 			ept_pdpte_t *pdpt =
 				alloc_pdpt_rec_by_memsize(assign_mib);
 			if (pdpt == NULL) {

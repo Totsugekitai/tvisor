@@ -31,7 +31,8 @@ static void __launch_vm(void *info)
 
 	save_vmxoff_state(&(vm->rsp), &(vm->rbp));
 
-	vmlaunch();
+	int e = vmlaunch();
+	pr_debug("tvisor: e=%x\n", e);
 
 	u64 err = 0;
 	vmread(VM_INSTRUCTION_ERROR, &err);

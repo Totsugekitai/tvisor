@@ -43,30 +43,90 @@ static u64 vmptrst(void)
 	return vmcspa;
 }
 
-static int vmclear(u64 vmcs_region)
+static int vmclear(u64 *vmcs_region_phys)
 {
-	u8 err;
-	asm volatile("vmclear %1; setna %0"
-		     : "=q"(err)
-		     : "m"(vmcs_region)
+	u64 rflags;
+	asm volatile("vmclear %1; pushfq; popq %0"
+		     : "=q"(rflags)
+		     : "m"(vmcs_region_phys)
 		     : "memory", "cc");
 
-	return (int)err;
+	u64 cf, pf, af, zf, sf, of;
+	cf = (rflags >> 0) & 1;
+	pf = (rflags >> 2) & 1;
+	af = (rflags >> 4) & 1;
+	zf = (rflags >> 6) & 1;
+	sf = (rflags >> 7) & 1;
+	of = (rflags >> 11) & 1;
+
+	if (cf & pf & af & zf & sf & of) {
+		if (cf) {
+			pr_debug("tvisor: VMfail Invaild\n");
+		} else if (zf) {
+			pr_debug("tvisor: VMfail Invalid(ErrorCode)\n");
+		} else {
+			pr_debug("tvisor: undefined state\n");
+		}
+		return 1;
+	}
+
+	return 0;
 }
 
-static int vmptrld(u64 vmcs_region)
+static int vmptrld(u64 *vmcs_region_phys)
 {
-	u8 err;
-	asm volatile("vmptrld %1; setna %0" : "=q"(err) : "m"(vmcs_region));
+	u64 rflags;
+	asm volatile("vmptrld %1; pushfq; popq %0"
+		     : "=q"(rflags)
+		     : "m"(vmcs_region_phys));
 
-	return (int)err;
+	u64 cf, pf, af, zf, sf, of;
+	cf = (rflags >> 0) & 1;
+	pf = (rflags >> 2) & 1;
+	af = (rflags >> 4) & 1;
+	zf = (rflags >> 6) & 1;
+	sf = (rflags >> 7) & 1;
+	of = (rflags >> 11) & 1;
+
+	if (cf & pf & af & zf & sf & of) {
+		if (cf) {
+			pr_debug("tvisor: VMfail Invaild\n");
+		} else if (zf) {
+			pr_debug("tvisor: VMfail Invalid(ErrorCode)\n");
+		} else {
+			pr_debug("tvisor: undefined state\n");
+		}
+		return 1;
+	}
+
+	return 0;
 }
 
 int vmlaunch(void)
 {
-	u8 err;
-	asm volatile("vmlaunch; setna %0" : "=q"(err));
-	return (int)err;
+	u64 rflags;
+	asm volatile("vmlaunch; pushfq; popq %0" : "=q"(rflags));
+
+	u64 cf, pf, af, zf, sf, of;
+	cf = (rflags >> 0) & 1;
+	pf = (rflags >> 2) & 1;
+	af = (rflags >> 4) & 1;
+	zf = (rflags >> 6) & 1;
+	sf = (rflags >> 7) & 1;
+	of = (rflags >> 11) & 1;
+
+	if (cf & pf & af & zf & sf & of) {
+		if (cf) {
+			pr_debug("tvisor: VMfail Invaild\n");
+		} else if (zf) {
+			pr_debug("tvisor: VMfail Invalid(ErrorCode)\n");
+		} else {
+			pr_debug("tvisor: undefined state\n");
+		}
+		return 1;
+	}
+
+	return 0;
 }
 
 void vmread(enum VMCS_FIELDS field, u64 *val)
@@ -294,29 +354,43 @@ int disable_vmx_on_each_cpu_mask(int cpu)
 int clear_vmcs_state(vmcs_t *vmcs)
 {
 	u64 vmcs_phys = __pa(vmcs);
-	return vmclear(vmcs_phys);
+	pr_debug("tvisor: VMCS physaddr = %llx\n", vmcs_phys);
+	return vmclear(&vmcs_phys);
 }
 
 int load_vmcs(vmcs_t *vmcs)
 {
 	u64 vmcs_phys = __pa(vmcs);
-	return vmptrld(vmcs_phys);
+	pr_debug("tvisor: VMCS physaddr = %llx\n", vmcs_phys);
+	return vmptrld(&vmcs_phys);
 }
 
 int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 {
-	vmwrite(HOST_ES_SELECTOR, read_es() & 0xf8);
-	vmwrite(HOST_CS_SELECTOR, read_cs() & 0xf8);
-	vmwrite(HOST_SS_SELECTOR, read_ss() & 0xf8);
-	vmwrite(HOST_DS_SELECTOR, read_ds() & 0xf8);
-	vmwrite(HOST_FS_SELECTOR, read_fs() & 0xf8);
-	vmwrite(HOST_GS_SELECTOR, read_gs() & 0xf8);
-	vmwrite(HOST_TR_SELECTOR, read_tr() & 0xf8);
+	u16 es, cs, ss, ds, fs, gs, tr;
+	es = read_es();
+	cs = read_cs();
+	ss = read_ss();
+	ds = read_ds();
+	fs = read_fs();
+	gs = read_gs();
+	tr = read_tr();
+	pr_debug("tvisor: es=%x, cs=%x, ss=%x, ds=%x, fs=%x, gs=%x, tr=%x\n",
+		 es, cs, ss, ds, fs, gs, tr);
+	vmwrite(HOST_ES_SELECTOR, es & 0xf8);
+	vmwrite(HOST_CS_SELECTOR, cs & 0xf8);
+	vmwrite(HOST_SS_SELECTOR, ss & 0xf8);
+	vmwrite(HOST_DS_SELECTOR, ds & 0xf8);
+	vmwrite(HOST_FS_SELECTOR, fs & 0xf8);
+	vmwrite(HOST_GS_SELECTOR, gs & 0xf8);
+	vmwrite(HOST_TR_SELECTOR, tr & 0xf8);
 
 	vmwrite(VMCS_LINK_POINTER, ~0ull);
 
 	u32 debug_msr_low, debug_msr_high;
 	rdmsr(MSR_IA32_DEBUGCTLMSR, debug_msr_low, debug_msr_high);
+	pr_debug("tvisor: GUEST_IA32_DEBUGCTL=%x_%x\n", debug_msr_high,
+		 debug_msr_low);
 	vmwrite(GUEST_IA32_DEBUGCTL, debug_msr_low);
 	vmwrite(GUEST_IA32_DEBUGCTL_HIGH, debug_msr_high);
 
@@ -333,7 +407,7 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(VM_ENTRY_INTR_INFO_FIELD, 0);
 
 	u64 gdt_base = read_gdt_base();
-	pr_debug("tvisor: GDT Base = %llx\n", gdt_base);
+	pr_debug("tvisor: guest GDT Base = %llx\n", gdt_base);
 
 	fill_guest_selector_data((void *)gdt_base, ES, read_es());
 	fill_guest_selector_data((void *)gdt_base, CS, read_cs());
@@ -344,11 +418,13 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	fill_guest_selector_data((void *)gdt_base, LDTR, read_ldt());
 	fill_guest_selector_data((void *)gdt_base, TR, read_tr());
 
-	u64 guest_fs, guest_gs;
-	rdmsrl(MSR_FS_BASE, guest_fs);
-	rdmsrl(MSR_GS_BASE, guest_gs);
-	vmwrite(GUEST_FS_BASE, guest_fs);
-	vmwrite(GUEST_GS_BASE, guest_gs);
+	u64 guest_fs_base, guest_gs_base;
+	rdmsrl(MSR_FS_BASE, guest_fs_base);
+	rdmsrl(MSR_GS_BASE, guest_gs_base);
+	pr_debug("tvisor: GUEST_FS_BASE=%llx, GUEST_GS_BASE=%llx\n",
+		 guest_fs_base, guest_gs_base);
+	vmwrite(GUEST_FS_BASE, guest_fs_base);
+	vmwrite(GUEST_GS_BASE, guest_gs_base);
 
 	vmwrite(GUEST_INTERRUPTIBILITY_INFO, 0);
 	vmwrite(GUEST_ACTIVITY_STATE, 0); // active state
@@ -375,27 +451,52 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(CR3_TARGET_VALUE2, 0);
 	vmwrite(CR3_TARGET_VALUE3, 0);
 
-	vmwrite(GUEST_CR0, read_cr0());
-	vmwrite(GUEST_CR3, read_cr3());
-	vmwrite(GUEST_CR4, read_cr4());
+	u64 cr0, cr3, cr4;
+	cr0 = read_cr0();
+	cr3 = read_cr3();
+	cr4 = read_cr4();
+	pr_debug("tvisor: GUEST_CR0=%llx, GUEST_CR3=%llx, GUEST_CR4=%llx\n",
+		 cr0, cr3, cr4);
+	vmwrite(GUEST_CR0, cr0);
+	vmwrite(GUEST_CR3, cr3);
+	vmwrite(GUEST_CR4, cr4);
 
 	vmwrite(GUEST_DR7, 0x400);
 
-	vmwrite(HOST_CR0, read_cr0());
-	vmwrite(HOST_CR3, read_cr3());
-	vmwrite(HOST_CR4, read_cr4());
+	cr0 = read_cr0();
+	cr3 = read_cr3();
+	cr4 = read_cr4();
+	pr_debug("tvisor: HOST_CR0=%llx, HOST_CR3=%llx, HOST_CR4=%llx\n", cr0,
+		 cr3, cr4);
+	vmwrite(HOST_CR0, cr0);
+	vmwrite(HOST_CR3, cr3);
+	vmwrite(HOST_CR4, cr4);
 
-	vmwrite(GUEST_GDTR_BASE, read_gdt_base());
-	vmwrite(GUEST_IDTR_BASE, read_idt_base());
-	vmwrite(GUEST_GDTR_LIMIT, read_gdt_limit());
-	vmwrite(GUEST_IDTR_LIMIT, read_idt_limit());
+	u64 guest_gdt_base, guest_idt_base;
+	guest_gdt_base = read_gdt_base();
+	guest_idt_base = read_idt_base();
+	u16 guest_gdt_limit, guest_idt_limit;
+	guest_gdt_limit = read_gdt_limit();
+	guest_idt_limit = read_idt_limit();
+	pr_debug("tvisor: GUEST_GDTR BASE=%llx, LIMIT=%x\n", guest_gdt_base,
+		 guest_gdt_limit);
+	pr_debug("tvisor: GUEST IDTR BASE=%llx, LIMIT=%x\n", guest_idt_base,
+		 guest_idt_limit);
+	vmwrite(GUEST_GDTR_BASE, guest_gdt_base);
+	vmwrite(GUEST_IDTR_BASE, guest_idt_base);
+	vmwrite(GUEST_GDTR_LIMIT, guest_gdt_limit);
+	vmwrite(GUEST_IDTR_LIMIT, guest_idt_limit);
 
-	vmwrite(GUEST_RFLAGS, read_rflags());
+	u64 rflags = read_rflags();
+	pr_debug("tvisor: GUEST_RFLAGS=%llx\n", rflags);
+	vmwrite(GUEST_RFLAGS, rflags);
 
 	u64 sysenter_cs, sysenter_eip, sysenter_esp;
 	rdmsrl(MSR_IA32_SYSENTER_CS, sysenter_cs);
 	rdmsrl(MSR_IA32_SYSENTER_EIP, sysenter_eip);
 	rdmsrl(MSR_IA32_SYSENTER_ESP, sysenter_esp);
+	pr_debug("tvisor: GUEST SYSENTER cs=%llx, eip=%llx, esp=%llx\n",
+		 sysenter_cs, sysenter_eip, sysenter_esp);
 	vmwrite(GUEST_SYSENTER_CS, sysenter_cs);
 	vmwrite(GUEST_SYSENTER_EIP, sysenter_eip);
 	vmwrite(GUEST_SYSENTER_ESP, sysenter_esp);
@@ -403,13 +504,19 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	segment_selector_t segment_selector;
 	get_segment_descriptor(&segment_selector, read_tr(),
 			       (u64 *)read_gdt_base());
+	pr_debug(
+		"tvisor: HOST_TR_BASE segment_selector sel=%x, base=%llx, limit=%x\n",
+		segment_selector.sel, segment_selector.base,
+		segment_selector.limit);
 	vmwrite(HOST_TR_BASE, segment_selector.base);
 
-	u64 host_fs, host_gs;
-	rdmsrl(MSR_FS_BASE, host_fs);
-	rdmsrl(MSR_GS_BASE, host_gs);
-	vmwrite(HOST_FS_BASE, host_fs);
-	vmwrite(HOST_GS_BASE, host_gs);
+	u64 host_fs_base, host_gs_base;
+	rdmsrl(MSR_FS_BASE, host_fs_base);
+	rdmsrl(MSR_GS_BASE, host_gs_base);
+	pr_debug("tvisor: MSR host fs_base=%llx, gs_base=%llx\n", host_fs_base,
+		 host_gs_base);
+	vmwrite(HOST_FS_BASE, host_fs_base);
+	vmwrite(HOST_GS_BASE, host_gs_base);
 
 	vmwrite(HOST_GDTR_BASE, read_gdt_base());
 	vmwrite(HOST_IDTR_BASE, read_idt_base());
@@ -421,10 +528,13 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(HOST_IA32_SYSENTER_EIP, sysenter_eip);
 	vmwrite(HOST_IA32_SYSENTER_ESP, sysenter_esp);
 
+	pr_debug("tvisor: VA_GUEST_MEMORY=%p\n", VA_GUEST_MEMORY);
 	vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
 	vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
 
-	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 1));
+	pr_debug("tvisor: HOST_RSP=%llx, HOST_RIP=%llx\n",
+		 ((u64)vmm_stack + VMM_STACK_SIZE - 1), (u64)vmexit_handler);
+	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 8));
 	vmwrite(HOST_RIP, (u64)vmexit_handler);
 
 	return 0;
@@ -451,12 +561,14 @@ void vmexit_handler_main(guest_regs_t *guest_regs)
 	case EXIT_REASON_VMXOFF:
 	case EXIT_REASON_VMXON:
 	case EXIT_REASON_VMLAUNCH:
+		pr_info("tvisor: execution of hlt detected...\n");
 		break;
 	case EXIT_REASON_HLT:
 		pr_info("tvisor: execution of hlt detected...\n");
 		restore_vmxoff_state(VM->rsp, VM->rbp);
 		break;
 	default:
+		pr_info("tvisor: execution of hlt detected...\n");
 		break;
 	}
 }
