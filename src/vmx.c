@@ -130,6 +130,33 @@ int vmlaunch(void)
 	return 0;
 }
 
+int vmresume(void)
+{
+	u64 rflags;
+	asm volatile("vmresume; pushfq; popq %0" : "=q"(rflags));
+
+	u64 cf, pf, af, zf, sf, of;
+	cf = (rflags >> 0) & 1;
+	pf = (rflags >> 2) & 1;
+	af = (rflags >> 4) & 1;
+	zf = (rflags >> 6) & 1;
+	sf = (rflags >> 7) & 1;
+	of = (rflags >> 11) & 1;
+
+	if (cf | pf | af | zf | sf | of) {
+		if (cf) {
+			pr_debug("tvisor: VMfail Invaild\n");
+		} else if (zf) {
+			pr_debug("tvisor: VMfail Invalid(ErrorCode)\n");
+		} else {
+			pr_debug("tvisor: undefined state\n");
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
 u64 vmread(enum VMCS_FIELDS field)
 {
 	u64 val = 9800, rflags = 0;
@@ -553,6 +580,40 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
 	vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
 
+	// 	{
+	// 		u64 pt_idx = ((u64)VA_GUEST_MEMORY >> 12) & 0x1ff;
+	// 		u64 pd_idx = ((u64)VA_GUEST_MEMORY >> 21) & 0x1ff;
+	// 		u64 pdpt_idx = ((u64)VA_GUEST_MEMORY >> 30) & 0x1ff;
+	// 		u64 pml4_idx = ((u64)VA_GUEST_MEMORY >> 39) & 0x1ff;
+
+	// 		cr3 = read_cr3();
+	// 		u64 pa_pml4 = (cr3 & (0xfffffffff << 12));
+	// 		u64 *va_pml4 = __va(pa_pml4);
+	// 		if ((va_pml4[pml4_idx] & 1) == 0) {
+	// 			pr_debug("tvisor: PML4 not present\n");
+	// 			goto exit_check;
+	// 		}
+	// 		u64 pa_pdpt = va_pml4[pml4_idx] & (0xfffffffff << 12);
+	// 		u64 *va_pdpt = __va(pa_pdpt);
+	// 		if ((va_pdpt[pdpt_idx] & 1) == 0) {
+	// 			pr_debug("tvisor: PDPT not present\n");
+	// 			goto exit_check;
+	// 		}
+	// 		u64 pa_pd = va_pdpt[pdpt_idx] & (0xfffffffff << 12);
+	// 		u64 *va_pd = __va(pa_pd);
+	// 		if ((va_pd[pd_idx] & 1) == 0) {
+	// 			pr_debug("tvisor: PD not present\n");
+	// 			goto exit_check;
+	// 		}
+	// 		u64 pa_pt = va_pd[pd_idx] & (0xfffffffff << 12);
+	// 		u64 *va_pt = __va(pa_pt);
+	// 		if ((va_pt[pt_idx] & 1) == 0) {
+	// 			pr_debug("tvisor: PT not present\n");
+	// 			goto exit_check;
+	// 		}
+	// 	}
+	// exit_check:
+
 	pr_debug("tvisor: HOST_RSP=%llx, HOST_RIP=%llx\n",
 		 ((u64)vmm_stack + VMM_STACK_SIZE - 8), (u64)vmexit_handler);
 	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 8));
@@ -586,12 +647,31 @@ void vmexit_handler_main(guest_regs_t *guest_regs)
 		pr_info("tvisor: execution of hlt detected...\n");
 		restore_vmxoff_state(VM->rsp, VM->rbp);
 		break;
+	case EXIT_REASON_TRIPLE_FAULT:
+		pr_info("tvisor: triple fault detected...\n");
+		break;
 	default:
-		pr_info("tvisor: execution of other detected...\n");
+		pr_info("tvisor: execution of other reason detected...\n");
 		break;
 	}
 }
 
+void resume_to_next_instruction(void)
+{
+	char *current_rip = (char *)vmread(GUEST_RIP);
+	u64 exit_instruction_length = (u64)vmread(VM_EXIT_INSTRUCTION_LEN);
+
+	char *resume_rip = current_rip + exit_instruction_length;
+	vmwrite(GUEST_RIP, (u64)resume_rip);
+}
+
 void vm_resumer(void)
 {
+	vmresume();
+
+	u64 err = vmread(VM_INSTRUCTION_ERROR);
+	pr_info("tvisor: vmlaunch is failed\n");
+	pr_debug("tvisor: vm instruction error[%lld]\n", err);
+	for (;;) { // (;o;)
+	}
 }

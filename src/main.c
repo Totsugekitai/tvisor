@@ -194,12 +194,6 @@ static int __init init_tvisor(void)
 
 	pr_debug("tvisor: Device created on /dev/%s\n", DEVICE_NAME);
 
-	// vmcs_t *vmxon_region = alloc_vmxon_region();
-	// if (vmxon_region == NULL) {
-	// 	return -ENOMEM;
-	// }
-	// vm.vmxon_region = vmxon_region;
-
 	return SUCCESS;
 }
 

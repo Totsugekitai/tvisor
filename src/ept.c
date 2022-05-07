@@ -7,6 +7,29 @@
 
 void *VA_GUEST_MEMORY = NULL;
 
+u64 gphys_to_hphys(u64 gphys, ept_pointer_t *eptp)
+{
+	u64 ept_page_offset = gphys & 0xfff;
+	u64 ept_pt_idx = (gphys >> 12) & 0x1ff;
+	u64 ept_pd_idx = (gphys >> 21) & 0x1ff;
+	u64 ept_pdpt_idx = (gphys >> 30) & 0x1ff;
+	u64 ept_pml4_idx = (gphys >> 39) & 0x1ff;
+
+	u64 pa_ept_pml4 = (u64)eptp->fields.ept_pml4_table_address << 12;
+	ept_pml4e_t *va_ept_pml4 = __va(pa_ept_pml4);
+	u64 pa_ept_pdpt = va_ept_pml4[ept_pml4_idx].fields.ept_pdpt_address
+			  << 12;
+	ept_pdpte_t *va_ept_pdpt = __va(pa_ept_pdpt);
+	u64 pa_ept_pd = va_ept_pdpt[ept_pdpt_idx].fields.ept_pd_address << 12;
+	ept_pde_t *va_ept_pd = __va(pa_ept_pd);
+	u64 pa_ept_pt = va_ept_pd[ept_pd_idx].fields.ept_pt_address << 12;
+	ept_pte_t *va_ept_pt = __va(pa_ept_pt);
+	u64 pa_ept_page = va_ept_pt[ept_pt_idx].fields.page_address << 12;
+
+	u64 hphys = pa_ept_page + ept_page_offset;
+	return hphys;
+}
+
 static void *alloc_ept_page(void)
 {
 	struct page *page = alloc_page(GFP_KERNEL_ACCOUNT);
