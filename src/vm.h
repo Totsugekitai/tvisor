@@ -2,8 +2,8 @@
 
 #include <linux/types.h>
 
-#include "vmx.h"
 #include "ept.h"
+#include "vmx.h"
 
 #define VMM_STACK_SIZE 0x1000
 

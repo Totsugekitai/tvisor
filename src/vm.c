@@ -1,8 +1,8 @@
 #include <linux/cpumask.h> /* Needed for cpumask_* */
-#include <linux/smp.h> /* Needed for on_each_cpu_mask */
-#include <linux/slab.h> /* Needed for kmalloc */
 #include <linux/mm.h> /* Needed for page_address */
 #include <linux/printk.h> /* Needed for printk */
+#include <linux/slab.h> /* Needed for kmalloc */
+#include <linux/smp.h> /* Needed for on_each_cpu_mask */
 
 #include "vm.h"
 

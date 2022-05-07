@@ -1,15 +1,14 @@
-#include <linux/printk.h> /* Needed for pr_alert */
-#include <linux/mm.h> /* Needed for struct page, alloc_pages_node, page_address, etc... */
-#include <linux/percpu-defs.h> /* Needed for DEFINE_PER_CPU macro */
-#include <linux/slab.h> /* Needed for kmalloc */
-
 #include <asm/msr.h>
 #include <asm/processor.h>
+#include <linux/mm.h> /* Needed for struct page, alloc_pages_node, page_address, etc... */
+#include <linux/percpu-defs.h> /* Needed for DEFINE_PER_CPU macro */
+#include <linux/printk.h> /* Needed for pr_alert */
+#include <linux/slab.h> /* Needed for kmalloc */
 
-#include "vmx.h"
-#include "vm.h"
 #include "cpu.h"
 #include "handler.h"
+#include "vm.h"
+#include "vmx.h"
 
 extern vm_state_t *VM;
 extern void *VA_GUEST_MEMORY;

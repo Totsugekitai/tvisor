@@ -1,13 +1,13 @@
+#include <linux/cdev.h> /* Needed by chardev */
+#include <linux/cpumask.h>/* Needed for on_each_cpu */
+#include <linux/device.h>
+#include <linux/fs.h> /* Needed for alloc_chrdev_region */
 #include <linux/init.h> /* Needed for the macros */
 #include <linux/kernel.h> /* Needed for pr_info, snprintf */
 #include <linux/module.h> /* Needed by all modules */
-#include <linux/fs.h> /* Needed for alloc_chrdev_region */
-#include <linux/cdev.h> /* Needed by chardev */
-#include <linux/device.h>
 #include <linux/smp.h> /* Needed for on_each_cpu */
-#include <linux/cpumask.h>/* Needed for on_each_cpu */
-#include <linux/types.h> /* Needed for uint64_t, etc */
 #include <linux/string.h> /* Needed for strncpy, etc */
+#include <linux/types.h> /* Needed for uint64_t, etc */
 #include <linux/uaccess.h> /* Needed for copy_from_user, copy_to_user */
 
 #include "cpu.h"
