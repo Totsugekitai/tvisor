@@ -414,6 +414,8 @@ int load_vmcs(vmcs_t *vmcs)
 
 int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 {
+	vmwrite(EPT_POINTER, eptp->all); // set EPT Pointer
+
 	u16 es, cs, ss, ds, fs, gs, tr;
 	es = read_es();
 	cs = read_cs();
@@ -481,7 +483,8 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 					CPU_BASED_ACTIVATE_SECONDARY_CONTROLS,
 				MSR_IA32_VMX_PROCBASED_CTLS));
 	vmwrite(SECONDARY_VM_EXEC_CONTROL,
-		adjust_controls(CPU_BASED_CTL2_RDTSCP,
+		adjust_controls(CPU_BASED_CTL2_RDTSCP |
+					CPU_BASED_CTL2_ENABLE_EPT,
 				MSR_IA32_VMX_PROCBASED_CTLS2));
 
 	vmwrite(PIN_BASED_VM_EXEC_CONTROL,
@@ -500,7 +503,8 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 
 	u64 cr0, cr3, cr4;
 	cr0 = read_cr0();
-	cr3 = read_cr3();
+	// cr3 = read_cr3();
+	cr3 = setup_guest_page_table(eptp).all;
 	cr4 = read_cr4();
 	pr_debug("tvisor: GUEST_CR0=%llx, GUEST_CR3=%llx, GUEST_CR4=%llx\n",
 		 cr0, cr3, cr4);
@@ -575,43 +579,12 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(HOST_IA32_SYSENTER_EIP, sysenter_eip);
 	vmwrite(HOST_IA32_SYSENTER_ESP, sysenter_esp);
 
-	pr_debug("tvisor: VA_GUEST_MEMORY=%p\n", VA_GUEST_MEMORY);
-	vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
-	vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
+	// pr_debug("tvisor: VA_GUEST_MEMORY=%p\n", VA_GUEST_MEMORY);
+	// vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
+	// vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
 
-	// 	{
-	// 		u64 pt_idx = ((u64)VA_GUEST_MEMORY >> 12) & 0x1ff;
-	// 		u64 pd_idx = ((u64)VA_GUEST_MEMORY >> 21) & 0x1ff;
-	// 		u64 pdpt_idx = ((u64)VA_GUEST_MEMORY >> 30) & 0x1ff;
-	// 		u64 pml4_idx = ((u64)VA_GUEST_MEMORY >> 39) & 0x1ff;
-
-	// 		cr3 = read_cr3();
-	// 		u64 pa_pml4 = (cr3 & (0xfffffffff << 12));
-	// 		u64 *va_pml4 = __va(pa_pml4);
-	// 		if ((va_pml4[pml4_idx] & 1) == 0) {
-	// 			pr_debug("tvisor: PML4 not present\n");
-	// 			goto exit_check;
-	// 		}
-	// 		u64 pa_pdpt = va_pml4[pml4_idx] & (0xfffffffff << 12);
-	// 		u64 *va_pdpt = __va(pa_pdpt);
-	// 		if ((va_pdpt[pdpt_idx] & 1) == 0) {
-	// 			pr_debug("tvisor: PDPT not present\n");
-	// 			goto exit_check;
-	// 		}
-	// 		u64 pa_pd = va_pdpt[pdpt_idx] & (0xfffffffff << 12);
-	// 		u64 *va_pd = __va(pa_pd);
-	// 		if ((va_pd[pd_idx] & 1) == 0) {
-	// 			pr_debug("tvisor: PD not present\n");
-	// 			goto exit_check;
-	// 		}
-	// 		u64 pa_pt = va_pd[pd_idx] & (0xfffffffff << 12);
-	// 		u64 *va_pt = __va(pa_pt);
-	// 		if ((va_pt[pt_idx] & 1) == 0) {
-	// 			pr_debug("tvisor: PT not present\n");
-	// 			goto exit_check;
-	// 		}
-	// 	}
-	// exit_check:
+	vmwrite(GUEST_RSP, (u64)0);
+	vmwrite(GUEST_RIP, (u64)0);
 
 	pr_debug("tvisor: HOST_RSP=%llx, HOST_RIP=%llx\n",
 		 ((u64)vmm_stack + VMM_STACK_SIZE - 8), (u64)vmexit_handler);

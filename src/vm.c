@@ -128,3 +128,54 @@ void destroy_vm(vm_state_t *vm)
 	free_vmxon_region(vm->vmxon_region);
 	kfree(vm);
 }
+
+cr3_t setup_guest_page_table(ept_pointer_t *eptp)
+{
+	// const u64 pml4_gphys = 0x1000;
+	// const u64 pdpt_gphys = 0x2000;
+	// const u64 pd_gphys = 0x3000;
+	// const u64 pt_gphys = 0x4000;
+
+	u64 pa_ept_pml4 = eptp->fields.ept_pml4_table_address << 12;
+	ept_pml4e_t *va_ept_pml4 = __va(pa_ept_pml4);
+	u64 pa_ept_pdpt = va_ept_pml4[0].fields.ept_pdpt_address << 12;
+	ept_pdpte_t *va_ept_pdpt = __va(pa_ept_pdpt);
+	u64 pa_ept_pd = va_ept_pdpt[0].fields.ept_pd_address << 12;
+	ept_pde_t *va_ept_pd = __va(pa_ept_pd);
+	u64 pa_ept_pt = va_ept_pd[0].fields.ept_pt_address << 12;
+	ept_pte_t *va_ept_pt = __va(pa_ept_pt);
+
+	u64 pa_pml4 = va_ept_pt[1].fields.page_address << 12;
+	u64 pa_pdpt = va_ept_pt[2].fields.page_address << 12;
+	u64 pa_pd = va_ept_pt[3].fields.page_address << 12;
+	u64 pa_pt = va_ept_pt[4].fields.page_address << 12;
+	pml4e_t *va_pml4 = __va(pa_pml4);
+	pdpte_t *va_pdpt = __va(pa_pdpt);
+	pde_t *va_pd = __va(pa_pd);
+	__pte_t *va_pt = __va(pa_pt);
+	memset(va_pml4, 0, 0x1000);
+	memset(va_pdpt, 0, 0x1000);
+	memset(va_pd, 0, 0x1000);
+	memset(va_pt, 0, 0x1000);
+
+	cr3_t cr3;
+	cr3.all = 0;
+	cr3.fields.pml4_address = 1;
+
+	va_pml4[0].fields.present = 1;
+	va_pml4[0].fields.pdpt_address = 2;
+
+	va_pdpt[0].fields.present = 1;
+	va_pdpt[0].fields.pd_address = 3;
+
+	va_pd[0].fields.present = 1;
+	va_pd[0].fields.pt_address = 4;
+
+	size_t i;
+	for (i = 0; i < 512; i++) {
+		va_pt[i].fields.page_address = 0;
+		va_pt[i].fields.present = 1;
+	}
+
+	return cr3;
+}
