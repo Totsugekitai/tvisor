@@ -30,6 +30,7 @@ static void __launch_vm(void *info)
 	setup_vmcs(vm->vmcs_region, vm->ept_pointer, vm->vmm_stack);
 
 	save_vmxoff_state(&(vm->rsp), &(vm->rbp));
+	pr_debug("tvisor: rsp=%llx, rbp=%llx\n", vm->rsp, vm->rbp);
 
 	vmlaunch();
 
@@ -127,9 +128,10 @@ void destroy_vm(vm_state_t *vm)
 	free_vmcs_region(vm->vmcs_region);
 	free_vmxon_region(vm->vmxon_region);
 	kfree(vm);
+	vm = NULL;
 }
 
-cr3_t setup_guest_page_table(ept_pointer_t *eptp)
+cr3_t setup_sample_guest_page_table(ept_pointer_t *eptp)
 {
 	// const u64 pml4_gphys = 0x1000;
 	// const u64 pdpt_gphys = 0x2000;

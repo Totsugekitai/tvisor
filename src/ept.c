@@ -5,8 +5,6 @@
 #include "ept.h"
 #include "util.h"
 
-void *VA_GUEST_MEMORY = NULL;
-
 u64 gphys_to_hphys(u64 gphys, ept_pointer_t *eptp)
 {
 	u64 ept_page_offset = gphys & 0xfff;
@@ -38,10 +36,6 @@ static void *alloc_ept_page(void)
 	}
 	void *page_va = page_address(page);
 	memset(page_va, 0xf4, 0x1000);
-
-	if (VA_GUEST_MEMORY == NULL) {
-		VA_GUEST_MEMORY = page_va;
-	}
 
 	return page_va;
 }

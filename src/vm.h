@@ -130,4 +130,4 @@ typedef union _pte {
 void launch_vm(int cpu, vm_state_t *vm);
 vm_state_t *create_vm(void);
 void destroy_vm(vm_state_t *vm);
-cr3_t setup_guest_page_table(ept_pointer_t *eptp);
+cr3_t setup_sample_guest_page_table(ept_pointer_t *eptp);

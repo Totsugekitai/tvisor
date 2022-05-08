@@ -9,7 +9,7 @@
 	asm volatile("mov %%rsp,%0; mov %%rbp, %1"                             \
 		     : "=m"(*rsp), "=m"(*rbp)                                  \
 		     :                                                         \
-		     : "memory", "cc")
+		     : "cc")
 
 // void restore_vmxoff_state(u64 rsp, u64 rbp);
 #define restore_vmxoff_state(rsp, rbp)                                         \

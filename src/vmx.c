@@ -503,8 +503,7 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 
 	u64 cr0, cr3, cr4;
 	cr0 = read_cr0();
-	// cr3 = read_cr3();
-	cr3 = setup_guest_page_table(eptp).all;
+	cr3 = setup_sample_guest_page_table(eptp).all; // cr3 = read_cr3();
 	cr4 = read_cr4();
 	pr_debug("tvisor: GUEST_CR0=%llx, GUEST_CR3=%llx, GUEST_CR4=%llx\n",
 		 cr0, cr3, cr4);
@@ -579,16 +578,12 @@ int setup_vmcs(vmcs_t *vmcs, ept_pointer_t *eptp, u64 *vmm_stack)
 	vmwrite(HOST_IA32_SYSENTER_EIP, sysenter_eip);
 	vmwrite(HOST_IA32_SYSENTER_ESP, sysenter_esp);
 
-	// pr_debug("tvisor: VA_GUEST_MEMORY=%p\n", VA_GUEST_MEMORY);
-	// vmwrite(GUEST_RSP, (u64)VA_GUEST_MEMORY);
-	// vmwrite(GUEST_RIP, (u64)VA_GUEST_MEMORY);
-
 	vmwrite(GUEST_RSP, (u64)0);
 	vmwrite(GUEST_RIP, (u64)0);
 
 	pr_debug("tvisor: HOST_RSP=%llx, HOST_RIP=%llx\n",
-		 ((u64)vmm_stack + VMM_STACK_SIZE - 8), (u64)vmexit_handler);
-	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 8));
+		 ((u64)vmm_stack + VMM_STACK_SIZE - 0x50), (u64)vmexit_handler);
+	vmwrite(HOST_RSP, ((u64)vmm_stack + VMM_STACK_SIZE - 0x50));
 	vmwrite(HOST_RIP, (u64)vmexit_handler);
 
 	return 0;
@@ -600,8 +595,8 @@ void vmexit_handler_main(guest_regs_t *guest_regs)
 
 	u64 exit_qualification = vmread(EXIT_QUALIFICATION);
 
-	pr_info("tvisor: exit reason[%llx]\n", exit_reason & 0xffff);
-	pr_info("tvisor: exit qualification[%llx]\n", exit_qualification);
+	pr_info("tvisor: exit reason[%lld]\n", exit_reason & 0xffff);
+	pr_info("tvisor: exit qualification[%lld]\n", exit_qualification);
 
 	switch (exit_reason) {
 	case EXIT_REASON_VMCLEAR:
@@ -617,7 +612,7 @@ void vmexit_handler_main(guest_regs_t *guest_regs)
 		break;
 	case EXIT_REASON_HLT:
 		pr_info("tvisor: execution of hlt detected...\n");
-		restore_vmxoff_state(VM->rsp, VM->rbp);
+		// restore_vmxoff_state(VM->rsp, VM->rbp);
 		break;
 	case EXIT_REASON_TRIPLE_FAULT:
 		pr_info("tvisor: triple fault detected...\n");
@@ -644,6 +639,6 @@ void vm_resumer(void)
 	u64 err = vmread(VM_INSTRUCTION_ERROR);
 	pr_info("tvisor: vmlaunch is failed\n");
 	pr_debug("tvisor: vm instruction error[%lld]\n", err);
-	for (;;) { // (;o;)
+	for (;;) { // (; o ;)
 	}
 }

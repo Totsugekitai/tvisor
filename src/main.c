@@ -163,7 +163,6 @@ static ssize_t tvisor_write(struct file *filp, const char __user *ubuf,
 		pr_info("tvisor: destroy VM\n");
 	} else if (!strncmp(kbuf, launch, strlen(launch))) {
 		if (TVISOR_STATE.is_vmx_enabled) {
-			VM = create_vm();
 			if (VM == NULL) {
 				pr_alert("tvisor: failed to create_vm\n");
 			} else {
@@ -207,7 +206,9 @@ static void __exit exit_tvisor(void)
 			pr_info("tvisor: disable VMX!\n");
 		}
 	}
-	// free_vmxon_region(vm.vmxon_region);
+	if (VM != NULL) {
+		destroy_vm(VM);
+	}
 
 	device_destroy(cls, MKDEV(major, 0));
 	class_destroy(cls);
